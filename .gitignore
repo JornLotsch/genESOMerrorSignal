@@ -9,3 +9,4 @@ generate_test_data.R
 main_analysis.R
 *.csv
 *.svg
+.idea
