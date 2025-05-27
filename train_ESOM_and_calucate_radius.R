@@ -307,3 +307,76 @@ cat(sprintf("Number of classes: %d\n", length(unique(data_cls))))
 cat(sprintf("ESOM grid dimensions: %d x %d\n", esom_lines, esom_columns))
 cat(sprintf("Toroid topology: %s\n", ifelse(esom_toroid, "Yes", "No")))
 cat("ESOM training complete!\n")
+
+
+# Calculate Delaunay radius for density-based visualization
+cat("Calculating Delaunay radius for density visualization...\n")
+Radius_umx <- Umatrix::calculate_Delauny_radius(
+  Data = as.matrix(data_for_esom),
+  BestMatches = umx_result$BestMatches,
+  Columns = esom_columns,
+  Lines = esom_lines,
+  Toroid = esom_toroid
+)
+
+# Store the radius data
+RadiusData <- Radius_umx$RadiusByEM
+
+# Summary for density radius calculation
+cat(sprintf("Delaunay radius calculation complete. Min: %.2f, Max: %.2f\n",
+            min(RadiusData), max(RadiusData)))
+
+# If plotting is enabled, create a density plot of neighborhood distances
+if (enable_plots) {
+  cat("Creating density plot of neighborhood distances...\n")
+
+  # Create a data frame with the neighborhood distances
+  neighbor_distances_df <- data.frame(distance = Radius_umx$neighbourDistances)
+
+  # Create the density plot with ggplot2
+  density_plot <- ggplot(neighbor_distances_df, aes(x = distance)) +
+    geom_density(fill = "lightblue", alpha = 0.7) +
+    geom_vline(xintercept = RadiusData, linetype = "dashed", color = "salmon", size = 1) +
+    annotate("text", x = RadiusData * 1.1, y = Inf, label = paste("Radius =", round(RadiusData, 2)),
+             vjust = 2, hjust = 0, color = "salmon") +
+    labs(title = "Density of Neighborhood Distances",
+         subtitle = paste("Calculated radius by EM:", round(RadiusData, 4)),
+         x = "Distance",
+         y = "Density") +
+    theme_light() +
+    theme(plot.title = element_text(hjust = 0.5),
+          plot.subtitle = element_text(hjust = 0.5))
+
+  print(density_plot)
+
+  # Save the plot if file output is enabled
+  if (enable_file_output) {
+    density_plot_file <- file.path(output_dir, paste0(output_prefix, "_density_plot.png"))
+    ggsave(density_plot_file, density_plot, width = 8, height = 6, dpi = 300)
+    cat(sprintf("Density plot saved to %s\n", density_plot_file))
+  }
+}
+
+# Save the radius data if file output is enabled
+if (enable_file_output) {
+  cat("Saving density radius data...\n")
+
+  # Make sure the output directory exists
+  if (!dir.exists(output_dir)) {
+    dir.create(output_dir, recursive = TRUE)
+    cat(sprintf("Created output directory: %s\n", output_dir))
+  }
+
+  radius_file <- file.path(output_dir, paste0(output_prefix, "_radius.csv"))
+
+  # Create a proper data frame with the radius value
+  radius_df <- data.frame(RadiusByEM = RadiusData)
+
+  # Write to CSV without row names and with explicit file connection
+  tryCatch({
+    write.csv(radius_df, file = radius_file, row.names = FALSE)
+    cat(sprintf("Density radius data saved to %s\n", radius_file))
+  }, error = function(e) {
+    cat(sprintf("Error saving radius data: %s\n", e$message))
+  })
+}

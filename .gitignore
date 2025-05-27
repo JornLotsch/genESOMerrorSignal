@@ -2,11 +2,11 @@
 *.Rproj
 .Rproj.user
 .Rhistory
-feature_importance_analysis.R
 *.code-workspace
 main_analysis.R
 *.csv
 *.svg
 .idea
 umatrix_output
+results
 
