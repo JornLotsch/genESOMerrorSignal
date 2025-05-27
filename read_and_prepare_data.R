@@ -73,6 +73,7 @@ tryCatch({
 }, error = function(e) {
   message("Unable to set working directory automatically. Please set it manually if needed.")
 })
+setwd("/home/joern/.Datenplatte/Joerns Dateien/Aktuell/GenerativeESOM/08AnalyseProgramme/R/genESOMerrorSignal")
 
 #' Configuration settings
 #' @section File paths:
