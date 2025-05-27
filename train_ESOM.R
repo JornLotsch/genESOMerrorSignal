@@ -72,7 +72,7 @@ toPercent <- function(data) {
   return(data_percent)
 }
 
-#' Function to create and save a 3D visualization of the U-matrix
+#' Function to create a 3D visualization of the U-matrix without automatic saving
 #'
 #' @param umatrix U-matrix object
 #' @param best_matches Best matches of the ESOM
@@ -80,17 +80,16 @@ toPercent <- function(data) {
 #' @param cls_colors Colors for the classes
 #' @param toroid Whether the ESOM has toroid topology
 #' @param imx Island mask
-#' @param filename Output filename
-#' @param output_dir Output directory
 #' @param bm_size Size of the best match points
 #' @param remove_ocean Whether to remove the "ocean" areas
 #' @param show_axis Whether to show the axes
 #' @param smooth_slope Whether to smooth the slopes
+#' @return Message instructing how to save the visualization
 #' @examples
-#' create_save_3d_visualization(Umx, BMUmx, Cls, rainbow(2), TRUE, Imx, "_Umx3D.png", "output/")
-create_save_3d_visualization <- function(umatrix, best_matches, cls, cls_colors, toroid, imx,
-                                         filename, output_dir, bm_size = 0.6, remove_ocean = TRUE,
-                                         show_axis = TRUE, smooth_slope = TRUE) {
+#' create_3d_visualization(Umx, BMUmx, Cls, rainbow(2), TRUE, Imx)
+create_3d_visualization <- function(umatrix, best_matches, cls, cls_colors, toroid, imx,
+                                    bm_size = 0.6, remove_ocean = TRUE,
+                                    show_axis = TRUE, smooth_slope = TRUE) {
   # Create 3D visualization
   Umatrix::showMatrix3D(
     Matrix = umatrix,
@@ -105,15 +104,16 @@ create_save_3d_visualization <- function(umatrix, best_matches, cls, cls_colors,
     SmoothSlope = smooth_slope
   )
 
-  # Create directory if it doesn't exist
-  if (!dir.exists(output_dir)) {
-    dir.create(output_dir, recursive = TRUE)
-  }
+  # Return instruction message
+  cat("3D visualization created.\n")
+  cat("Manually adjust the view to your preferred perspective using the mouse:\n")
+  cat(" - Left-click and drag: Rotate\n")
+  cat(" - Right-click and drag: Zoom\n")
+  cat(" - Middle-click and drag: Pan\n")
+  cat("\nWhen satisfied with the view, save the visualization using:\n")
+  cat("snapshot3d(\"path/to/output_dir/filename.png\", \"png\")\n")
 
-  # Save the 3D visualization
-  full_path <- file.path(output_dir, filename)
-  snapshot3d(full_path, "png")
-  cat(sprintf("3D visualization saved to '%s'\n", full_path))
+  return(invisible(NULL))
 }
 
 #' Function to save U-matrix related files if file output is enabled
@@ -239,21 +239,49 @@ if (enable_plots) {
   print(umx_plot)
   print(pmx_plot)
 
-  # Create and save 3D visualization if enabled
+  # Create 3D visualization if enabled
   if (enable_3d_visualization) {
     cat("Creating 3D visualization...\n")
-    create_save_3d_visualization(
+    # Prepare the output path
+    if (!dir.exists(output_dir)) {
+      dir.create(output_dir, recursive = TRUE)
+    }
+
+    filename_3d <- paste0(output_prefix, "_3D.png")
+    full_path_3d <- file.path(output_dir, filename_3d)
+
+    # Create the 3D visualization
+    create_3d_visualization(
       umatrix = umx_result$Umatrix,
       best_matches = umx_result$BestMatches,
       cls = data_cls,
       cls_colors = rainbow(length(unique(data_cls))),
       toroid = esom_toroid,
       imx = imx_result$Imx,
-      filename = paste0(output_prefix, "_3D.png"),
-      output_dir = output_dir
+      bm_size = 0.6,
+      remove_ocean = TRUE
     )
+
+    cat("\n================================\n")
+    cat("3D visualization is now open for manual adjustment.\n")
+    cat("- Left-click and drag: Rotate\n")
+    cat("- Right-click and drag: Zoom\n")
+    cat("- Middle-click and drag: Pan\n")
+    cat("\nWhen you are satisfied with the view, save it using:\n")
+    cat(sprintf("snapshot3d(\"%s\", \"png\")\n", full_path_3d))
+    cat("\nAfter saving, you can close the 3D window manually.\n")
+    cat("================================\n")
+
+    # NOTE: The saving should be done manually by the user after adjusting the view
+    # The automatic saving has been removed from this section
   }
 }
+
+# Save the 3D visualization if enabled
+# Run only when 3D visualization if enabled
+# snapshot3d("umatrix_output//Umx_3D.png", "png")
+# End run only when 3D visualization if enabled
+
 
 # Save U-matrix files if enabled
 if (enable_file_output) {
