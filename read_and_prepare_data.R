@@ -65,7 +65,7 @@ if (!requireNamespace("ABCstats", quietly = TRUE)) {
   has_abcstats <- TRUE
 }
 
-# Handle working directory setting more robustly
+# Handle working directory setting
 tryCatch({
   if (exists("rstudioapi::getSourceEditorContext")) {
     setwd(dirname(rstudioapi::getSourceEditorContext()$path))
@@ -1060,48 +1060,70 @@ impute_missing_values <- function(data, n_cores = 1, random_seed = 42) {
 #'
 #' @param data Data frame to visualize
 #' @param file_path File path to save the heatmap
-#' @param classes Optional vector of class labels
+#' @param class_column Name of the column containing class labels (or NULL)
+#' @param scale_data Logical indicating whether to scale the data
 #' @return NULL (creates a plot)
-create_heatmap <- function(data, file_path = NULL, classes = NULL, scale_data = TRUE) {
+create_heatmap <- function(data, file_path = NULL, class_column = NULL, scale_data = TRUE) {
   if (!requireNamespace("ComplexHeatmap", quietly = TRUE)) {
     warning("ComplexHeatmap package not available. Skipping heatmap creation.")
     return(NULL)
   }
 
-  # Prepare data for heatmap
-  heatmap_data <- as.matrix(data)
+  # Extract classes if class_column is provided
+  classes <- NULL
+  data_for_heatmap <- data
 
-  # Scale data if it's numeric
+  # Check if class_column exists in data
+  if (!is.null(class_column) && class_column %in% colnames(data)) {
+    verbose("Using '%s' column for class annotation in heatmap", class_column)
+    classes <- data[[class_column]]
+    # Remove class column from data for heatmap
+    data_for_heatmap <- data[, !colnames(data) %in% class_column, drop = FALSE]
+  } else if (!is.null(class_column)) {
+    warning("Class column '%s' not found in data. No class annotation will be used.", class_column)
+  }
+
+  # If no classes are provided, create a default class vector
+  if (is.null(classes)) {
+    classes <- rep(1, nrow(data))  # Default to single class if not provided
+    verbose("No class information provided. Using single class for all observations.")
+  }
+
+  # Prepare data for heatmap
+  heatmap_data <- as.matrix(data_for_heatmap)
+
+  # Scale data if it's numeric and scaling is requested
   if (scale_data) {
     if (is.numeric(heatmap_data)) {
-    heatmap_data <- t(scale(t(heatmap_data)))
+      heatmap_data <- t(scale(t(heatmap_data)))
+      verbose("Data scaled for heatmap visualization")
+    } else {
+      warning("Data contains non-numeric columns. Skipping scaling.")
     }
   }
-  
-  # Create annotation if classes are provided
+
+  # Create annotation with the classes
   row_annotation <- NULL
-  if (!is.null(classes)) {
-    class_df <- data.frame(Class = classes)
-    class_colors <- list(Class = setNames(
-      rainbow(length(unique(classes))),
-      unique(classes)
-    ))
-    row_annotation <- ComplexHeatmap::rowAnnotation(
-      df = class_df,
-      col = class_colors
-    )
-  }
+  class_df <- data.frame(Class = classes)
+  class_colors <- list(Class = setNames(
+    rainbow(length(unique(classes))),
+    unique(classes)
+  ))
+  row_annotation <- ComplexHeatmap::rowAnnotation(
+    df = class_df,
+    col = class_colors
+  )
 
   # Create the heatmap
   heatmap <- ComplexHeatmap::Heatmap(
     heatmap_data,
     name = ifelse(scale_data, "Z-score", "Data"),
     col = colorRampPalette(c("dodgerblue", "white", "chartreuse"))(100),
-    show_row_names = TRUE,
+    show_row_names = FALSE,  # Changed to FALSE as typically there are many rows
     show_column_names = TRUE,
     cluster_rows = FALSE,
     cluster_columns = FALSE,
-    right_annotation = row_annotation  # Changed from top_annotation to right_annotation
+    right_annotation = row_annotation
   )
 
   # Save to file if path is provided
@@ -1117,6 +1139,8 @@ create_heatmap <- function(data, file_path = NULL, classes = NULL, scale_data = 
 
   return(NULL)
 }
+
+
 
 #' ============================
 #' Main script execution
@@ -1267,6 +1291,16 @@ if (enable_outlier_removal) {
         verbose("  %s: %d outliers", top_outlier_vars[i], top_outlier_counts[i])
       }
     }
+
+    # Update class_column to match the removed rows
+    if (!is.null(class_column) && outliers_removed > 0) {
+      # Get the rows that were kept
+      kept_rows <- attr(outlier_removed_data, "kept_rows")
+      if (!is.null(kept_rows)) {
+        class_column <- class_column[kept_rows]
+        verbose("Updated class column to match outlier removal: %d entries", length(class_column))
+      }
+    }
   }
 
   # Remove cases with too many missing values if enabled
@@ -1275,6 +1309,17 @@ if (enable_outlier_removal) {
       outlier_removed_data,
       threshold = case_outlier_limit
     )
+
+    # Update class_column to match the removed cases
+    if (!is.null(class_column)) {
+      removed_cases <- attr(outlier_removed_data, "removed_cases")
+      if (!is.null(removed_cases) && length(removed_cases) > 0) {
+        # Keep only cases that weren't removed
+        kept_cases <- setdiff(1:length(class_column), removed_cases)
+        class_column <- class_column[kept_cases]
+        verbose("Updated class column after case removal: %d entries", length(class_column))
+      }
+    }
   }
 }
 
@@ -1288,6 +1333,19 @@ if (enable_imputation) {
     n_cores = n_cores,
     random_seed = random_seed
   )
+}
+
+# Reinsert class column if it exists
+if (!is.null(class_column)) {
+  verbose("Reinserting '%s' column into processed data...", class_name)
+  # Verify that dimensions match
+  if (nrow(processed_data) != length(class_column)) {
+    warning("Dimensions mismatch between processed data (%d rows) and class column (%d entries). Class column not added.",
+            nrow(processed_data), length(class_column))
+  } else {
+    processed_data[[class_name]] <- class_column
+    verbose("Class column '%s' successfully added to processed data", class_name)
+  }
 }
 
 # Save processed data
@@ -1306,14 +1364,23 @@ if (enable_transformation && transformation_method != "none") {
     if (!is.null(transformations)) {
       for (i in 1:ncol(processed_data)) {
         col_name <- names(processed_data)[i]
+        # Skip the class column if it exists
+        if (col_name == class_name) next
         lambda <- transformations[i]
         back_transformed_data[, i] <- back_transform(processed_data[, i], lambda)
       }
     }
   } else {
     # For single transformation method, use the appropriate back-transform function
-    back_transformed_data <- back_transform_data(
-      processed_data,
+    # Create a copy of processed_data first
+    back_transformed_data <- processed_data
+
+    # Get columns to transform (all except class column)
+    cols_to_transform <- setdiff(colnames(processed_data), class_name)
+
+    # Apply back-transformation only to the data columns
+    back_transformed_data[, cols_to_transform] <- back_transform_data(
+      processed_data[, cols_to_transform, drop = FALSE],
       method = transformation_method,
       lambdas = lambdas
     )
@@ -1327,7 +1394,7 @@ if (enable_transformation && transformation_method != "none") {
 # Create heatmap of processed data if enabled
 if (enable_plots) {
   verbose("Creating heatmap of processed data...")
-  create_heatmap(processed_data, heatmap_file, class_column, scale_data = FALSE)
+  create_heatmap(processed_data, heatmap_file, class_column = class_name, scale_data = FALSE)
 }
 
 verbose("Data preparation and imputation complete!")

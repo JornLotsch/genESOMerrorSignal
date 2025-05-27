@@ -9,7 +9,14 @@
 #' - Saves results to files
 
 # Set working directory to current file location
-setwd(dirname(rstudioapi::getSourceEditorContext()$path))
+# Handle working directory setting
+tryCatch({
+  if (exists("rstudioapi::getSourceEditorContext")) {
+    setwd(dirname(rstudioapi::getSourceEditorContext()$path))
+  }
+}, error = function(e) {
+  message("Unable to set working directory automatically. Please set it manually if needed.")
+})
 
 #' Load required libraries
 #' @note These libraries must be installed before running the script
@@ -22,9 +29,10 @@ library(dplyr)        # For data manipulation
 
 #' Configuration settings
 #' @section File paths:
-input_file <- "Mouse_lipids_processed.csv"   # Input processed data file (from previous script)
+input_file <- "test_processed.csv"   # Input processed data file (from previous script)
+class_name <- "Species"                 # Name of classes column
 output_dir <- "umatrix_output/"              # Output directory for U-matrix files
-output_prefix <- "UmxMouse"                  # Prefix for output files
+output_prefix <- "Umx"                  # Prefix for output files
 
 #' @section ESOM parameters:
 esom_lines <- 50                          # Number of lines in the ESOM grid
@@ -32,7 +40,7 @@ esom_columns <- 80                        # Number of columns in the ESOM grid
 esom_toroid <- TRUE                       # Whether to use a toroid topology
 esom_epochs <- 20                         # Number of training epochs
 enable_plots <- TRUE                      # Whether to create and display plots
-enable_percent_conversion <- FALSE        # Whether to convert data to percentage
+enable_percent_conversion <- TRUE        # Whether to convert data to percentage
 enable_3d_visualization <- TRUE           # Whether to create 3D visualizations
 enable_file_output <- TRUE                # Whether to save files to disk
 
@@ -79,7 +87,7 @@ toPercent <- function(data) {
 #' @param show_axis Whether to show the axes
 #' @param smooth_slope Whether to smooth the slopes
 #' @examples
-#' create_save_3d_visualization(UmxMouse, BMUmxMouse, MouseCls, rainbow(2), TRUE, ImxMouse, "Mouse_Umx3D.png", "output/")
+#' create_save_3d_visualization(Umx, BMUmx, Cls, rainbow(2), TRUE, Imx, "_Umx3D.png", "output/")
 create_save_3d_visualization <- function(umatrix, best_matches, cls, cls_colors, toroid, imx,
                                          filename, output_dir, bm_size = 0.6, remove_ocean = TRUE,
                                          show_axis = TRUE, smooth_slope = TRUE) {
@@ -120,7 +128,7 @@ create_save_3d_visualization <- function(umatrix, best_matches, cls, cls_colors,
 #' @param prefix File prefix
 #' @param output_dir Output directory
 #' @examples
-#' save_umatrix_files(UmxMouse, PmxMouse, ImxMouse, UstarmxMouse, BMUmxMouse, WTsUmxMouse, MouseCls, "UmxMouse", "output/")
+#' save_umatrix_files(Umx, Pmx, Imx, Ustarmx, BMUmx, WTsUmx, Cls, "Umx", "output/")
 save_umatrix_files <- function(umx, pmx, imx, ustar_mx, bm, weights, cls, prefix, output_dir) {
   # Create directory if it doesn't exist
   if (!dir.exists(output_dir)) {
@@ -128,13 +136,13 @@ save_umatrix_files <- function(umx, pmx, imx, ustar_mx, bm, weights, cls, prefix
   }
 
   # Save files
-  Umatrix::WriteBM(FileName = paste0(prefix, ".bm"), BestMatches = bm, OutDirectory = output_dir)
-  Umatrix::WriteUMX(FileName = paste0(prefix, ".umx"), UMatrix = umx, OutDirectory = output_dir)
-  Umatrix::WriteUMX(FileName = paste0("Pmx", prefix, ".umx"), UMatrix = pmx, OutDirectory = output_dir)
-  Umatrix::WriteUMX(FileName = paste0("Umxstar", prefix, ".umx"), UMatrix = ustar_mx, OutDirectory = output_dir)
-  Umatrix::WriteIMX(FileName = paste0("Imx", prefix, ".imx"), MapMask = imx, OutDirectory = output_dir)
-  Umatrix::WriteWTS(FileName = paste0(prefix, ".wts"), wts = weights, OutDirectory = output_dir)
-  Umatrix::WriteCLS(FileName = paste0(prefix, ".cls"), Cls = cls, OutDirectory = output_dir)
+  dbt.DataIO::WriteBM(FileName = paste0(prefix, ".bm"), BestMatches = bm, OutDirectory = output_dir)
+  dbt.DataIO::WriteUMX(FileName = paste0(prefix, ".umx"), UMatrix = umx, OutDirectory = output_dir)
+  dbt.DataIO::WriteUMX(FileName = paste0("Pmx", prefix, ".umx"), UMatrix = pmx, OutDirectory = output_dir)
+  dbt.DataIO::WriteUMX(FileName = paste0("Umxstar", prefix, ".umx"), UMatrix = ustar_mx, OutDirectory = output_dir)
+  dbt.DataIO::WriteIMX(FileName = paste0("Imx", prefix, ".imx"), MapMask = imx, OutDirectory = output_dir)
+  dbt.DataIO::WriteWTS(FileName = paste0(prefix, ".wts"), wts = weights, OutDirectory = output_dir)
+  dbt.DataIO::WriteCLS(FileName = paste0(prefix, ".cls"), Cls = cls, OutDirectory = output_dir)
 
   cat(sprintf("U-matrix files saved with prefix '%s' to directory '%s'\n", prefix, output_dir))
 }
@@ -150,10 +158,10 @@ cat(sprintf("Data dimensions: %d rows by %d columns\n",
             nrow(processed_data), ncol(processed_data)))
 
 # Extract or create class labels (if not available, assume single class)
-if ("Class" %in% colnames(processed_data)) {
-  cat("Using 'Class' column as class labels...\n")
-  data_cls <- as.integer(as.factor(processed_data$Class))
-  processed_data <- processed_data[, !colnames(processed_data) %in% "Class"]
+if (class_name %in% colnames(processed_data)) {
+  cat(paste0("Using ", class_name,  " column as class labels...\n"))
+  data_cls <- as.integer(as.factor(processed_data[[class_name]]))
+  processed_data <- processed_data[, !colnames(processed_data) %in% class_name]
 } else {
   cat("No class labels found, assuming single class...\n")
   data_cls <- rep(1, nrow(processed_data))
@@ -184,6 +192,7 @@ imx_result <- Umatrix::iUmapIsland(Umatrix = umx_result$Umatrix,
 # Generate P-matrix and U*-matrix
 cat("Generating P-matrix and U*-matrix...\n")
 pmx_result <- Umatrix::iUstarmatrix(Data = data_for_esom,
+                                    Cls = data_cls, 
                                     Weights = umx_result$Weights,
                                     Lines = esom_lines,
                                     Columns = esom_columns)
