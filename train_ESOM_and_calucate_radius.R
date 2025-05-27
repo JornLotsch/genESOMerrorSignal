@@ -351,8 +351,8 @@ if (enable_plots) {
 
   # Save the plot if file output is enabled
   if (enable_file_output) {
-    density_plot_file <- file.path(output_dir, paste0(output_prefix, "_density_plot.png"))
-    ggsave(density_plot_file, density_plot, width = 8, height = 6, dpi = 300)
+    density_plot_file <- file.path(output_dir, paste0(output_prefix, "_density_plot.svg"))
+    ggsave(density_plot_file, density_plot, width = 8, height = 6)
     cat(sprintf("Density plot saved to %s\n", density_plot_file))
   }
 }

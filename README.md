@@ -87,6 +87,10 @@ The ESOM U-matrix training module allows you to:
 1. Generate U-matrix visualizations from your processed data
 2. Create interactive 3D visualizations for better data exploration
 3. Calculate density radius for synthetic data generation
+
+<img src="./neighborhood_distances.svg">
+
+
 4. Save all necessary files for further analysis
 
 Configuration parameters at the top of the script allow you to customize:
