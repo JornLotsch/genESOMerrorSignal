@@ -37,8 +37,10 @@ This pipeline offers a robust framework for processing, transforming, analyzing,
   - Original data
   - Engineered data with permuted features
   - Synthetic augmented data
+  - Reduced dataset option for split testing
 - **Statistical significance assessment** of features using bootstrapping
 - **Comprehensive visualization** of feature importance metrics
+- **Circular and bar plot visualizations** for easier feature comparison
 
 ### Synthetic Data Generation
 - **Density-based data augmentation** using ESOM
@@ -61,9 +63,9 @@ The pipeline requires several R packages:
 - cowplot, dplyr
 
 ### Feature Importance Analysis
-- Boruta, caret
-- reshape2, cowplot
-- pbmcapply
+- Boruta, caret, reshape2
+- cowplot, pbmcapply
+- opdisDownsampling (for data splitting)
 
 ## Configuration
 
@@ -77,6 +79,7 @@ The pipeline is highly configurable, allowing you to control:
 - ESOM grid dimensions and visualization options
 - Feature importance analysis parameters
 - Synthetic data generation multipliers
+- Dataset types for comparative analysis
 
 ## Usage
 
@@ -89,7 +92,6 @@ The ESOM U-matrix training module allows you to:
 3. Calculate density radius for synthetic data generation
 
 <img src="./neighborhood_distances.svg">
-
 
 4. Save all necessary files for further analysis
 
@@ -104,42 +106,22 @@ Configuration parameters at the top of the script allow you to customize:
 The feature importance analysis module allows you to:
 
 1. Process your data and identify significant features
-2. Compare feature importance across different data augmentation strategies
+2. Compare feature importance across different data types:
+  - Original data
+  - Engineered data with permuted features
+  - Synthetic augmented data
+  - Reduced datasets (training/test splits)
 3. Generate visualizations showing feature selection frequency
 4. Create a summary table of significant features across all datasets
 
 Configuration parameters at the top of the script allow you to customize:
 - Number of iterations for feature selection
 - Generation multipliers for synthetic data
+- Dataset types to include in the analysis
 - Output file paths and formats
 
-### Synthetic Data Generation
-
-The synthetic data generation module allows you to:
-1. Generate synthetic samples based on your original data
-2. Control the number of synthetic samples per original data point
-3. Use density-based approaches for realistic synthetic data
-
-## Getting Started
-
-**Note**: Detailed installation and usage instructions will be added as development progresses.
-
-## Roadmap
-
-- [x] Complete data transformation modules
-- [x] Add visualization components
-- [x] Implement feature importance analysis
-- [x] Add synthetic data generation
-- [x] Implement ESOM U-matrix visualization
-- [ ] Create comprehensive documentation
-- [ ] Add example datasets
-- [ ] Build test suite
-- [ ] Create user-friendly interface
-
-## Contributing
-
-As this project is still under development, contribution guidelines will be established in the near future. Feel free to open issues for bugs or feature requests.
-
-## License
-
-[License information will be added]
+Example configuration:
+```r
+# Define dataset types to analyze
+DataSetSizes <- c("original", "engineered_0", "reduced", "augmented_1_engineered", "augmented_5_engineered")
+```

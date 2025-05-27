@@ -43,12 +43,6 @@ output_file <- "test_processed.csv"     # Output processed data file
 generation_multipliers <- c(1, 5)  # Can be extended to any number of multipliers
 base_generation_rate <- 1          # Base rate of synthetic samples per original sample
 
-# Helper function for quantiles in ggplot
-quantiles_100 <- function(x) {
-  r <- quantile(x, probs = c(0.00, 0.25, 0.5, 0.75, 1.00))
-  names(r) <- c("ymin", "lower", "middle", "upper", "ymax")
-  r
-}
 
 # Helper function to check for integer(0)
 is.integer0 <- function(x) {
@@ -86,25 +80,31 @@ if (file.exists(file.path(output_dir, paste0("Umx_radius.csv")))) {
   }
 }
 
-#################################### Split data set into training/test/validation ########################################################################
+# Handle data splitting only if needed
+needsDataSplit <- any(grepl("reduced", DataSetSizes))
 
-cat("Splitting data into training, test and validation sets...\n")
-TestDataTrainingTestValidation <- opdisDownsampling::opdisDownsampling(
-  Data = within(data_df, rm(get(class_name))),
-  Cls = data_df[[class_name]],
-  Size = 0.8 * nrow(data_df),
-  Seed = seed,
-  nTrials = 10000,
-  MaxCores = nProc
-)
+# Optionally split data based on dataset types
+if (needsDataSplit) {
+  cat("Splitting data into training, test and validation sets...\n")
+  TestDataTrainingTestValidation <- opdisDownsampling::opdisDownsampling(
+    Data = within(data_df, rm(get(class_name))),
+    Cls = data_df[[class_name]],
+    Size = 0.8 * nrow(data_df),
+    Seed = seed,
+    nTrials = 10000,
+    MaxCores = nProc
+  )
 
-data_TrainingTest <- data_df[rownames(data_df) %in% TestDataTrainingTestValidation$ReducedInstances, ]
-cat("Training/Test set class distribution:\n")
-print(table(data_TrainingTest[[class_name]]))
+  data_TrainingTest <- data_df[rownames(data_df) %in% TestDataTrainingTestValidation$ReducedInstances, ]
+  cat("Training/Test set class distribution:\n")
+  print(table(data_TrainingTest[[class_name]]))
 
-data_Validation <- data_df[!rownames(data_df) %in% TestDataTrainingTestValidation$ReducedInstances, ]
-cat("Validation set class distribution:\n")
-print(table(data_Validation[[class_name]]))
+  data_Validation <- data_df[!rownames(data_df) %in% TestDataTrainingTestValidation$ReducedInstances, ]
+  cat("Validation set class distribution:\n")
+  print(table(data_Validation[[class_name]]))
+} else {
+  cat("Skipping data splitting (not required for current dataset types)\n")
+}
 
 #################################### Evaluate variable importance ########################################################################
 
@@ -134,6 +134,13 @@ Test_VarImps <- lapply(DataSetSizes, function(DatasetNr) {
     # Select or generate appropriate dataset based on DatasetNr
     if (DatasetNr == "original") {
       data_actual <- data_df
+    } else if (DatasetNr == "reduced") {
+      # Use the already split data
+      if (!exists("data_TrainingTest")) {
+        stop("'reduced' dataset requested but data splitting wasn't performed")
+      }
+      data_actual <- data_TrainingTest
+      cat(sprintf("Using reduced dataset with %d rows\n", nrow(data_actual)))
     } else if (DatasetNr == "engineered_0") {
       set.seed(x)
       # Create engineered dataset with permuted features
@@ -184,6 +191,21 @@ Test_VarImps <- lapply(DataSetSizes, function(DatasetNr) {
       )
       # Rename class column to match original
       names(data_actual)[names(data_actual) == "class"] <- class_name
+    } else if (grepl("augmented_", DatasetNr)) {
+      set.seed(x)
+      data_generated <- generate_synthetic_data(
+        Data = within(data_df, rm(get(class_name))),
+        density_radius = RadiusData,
+        gen_per_data = gen_multiplier * base_generation_rate,
+        Cls = data_df[[class_name]]
+      )
+
+      data_actual <- rbind.data.frame(
+        cbind.data.frame(data_generated$original_data, class = data_generated$original_classes),
+        cbind.data.frame(data_generated$generated_data, class = data_generated$generated_classes)
+      )
+      # Rename class column to match original
+      names(data_actual)[names(data_actual) == "class"] <- class_name
     }
 
     # Split data for Boruta analysis
@@ -203,8 +225,6 @@ Test_VarImps <- lapply(DataSetSizes, function(DatasetNr) {
 
     # Prepare importance data for plotting
     dfVarimp_Test_Boruta_actual_long <- reshape2::melt(Test_Boruta_actual$ImpHistory)
-    dfVarimp_Test_Boruta_actual_long$ColorVar <- ifelse(dfVarimp_Test_Boruta_actual_long$Var2 %in% names(data_actual), 2, 1)
-    dfVarimp_Test_Boruta_actual_long$ColorVar[grep("permuted", dfVarimp_Test_Boruta_actual_long$Var2)] <- 3
 
     return(list(
       Test_Boruta_actual = Test_Boruta_actual,
@@ -286,67 +306,134 @@ Test_VarImps <- lapply(DataSetSizes, function(DatasetNr) {
   dfVarimp_Test_Boruta_actual_long_all <- do.call(rbind.data.frame,
                                                   lapply(Imps_repeated, function(x) x$dfVarimp_Test_Boruta_actual_long))
 
-  # Determine upper border of non-importance for importance plot
-  upperBorderOfNonImportance <- NA
-  if (!is.integer0(grep("permuted", dfVarimp_Test_Boruta_actual_long_all$Var2))) {
-    upperBorderOfNonImportance <- quantile(BorutaStats_all$maxImp[grep("permuted", BorutaStats_all$Var)], prob = 1)
-  }
-
-  # Create importance plot
-  pVarimp_Test_actual <- ggplot(data = dfVarimp_Test_Boruta_actual_long_all,
-                                aes(x = reorder(Var2, value), y = value, fill = factor(ColorVar))) +
-    stat_summary(fun.data = quantiles_100, geom = "boxplot", alpha = 0.2, width = 0.5, position = "dodge") +
-    scale_fill_manual(values = c("dodgerblue4", "chartreuse2", "salmon"),
-                      labels = c("Dummy", "True features", "Permuted features")) +
-    labs(title = "Variable importances",
-         y = "Importance [% decrease in accuracy]",
-         x = NULL,
-         fill = "Feature class") +
+  # Create frequency plot showing difference (True - Permuted) with consistent color scheme
+  varSelectionBar <- ggplot(data = dfVars) +
+    geom_bar(
+      aes(
+        y = reorder(Var, SelectedTrueCorr),
+        x = SelectedTrueCorr,
+        fill = SelectedTrueCorr,
+        color = SelectedTrueCorr > 0  # Use boolean to determine outline color
+      ),
+      stat = "identity"
+    ) +
+    # Add zero line
+    geom_vline(xintercept = 0, linetype = "dashed", color = "salmon") +
+    # Apply the same color gradient as the circular plot
+    scale_fill_gradient2(
+      "Selection Frequency",
+      low = "chartreuse",     # Green for negative values
+      mid = "ghostwhite",     # White for values near 0
+      high = "salmon",        # Salmon to red gradient for positive values
+      midpoint = 0
+    ) +
+    # Add color scale for outlines
+    scale_color_manual(
+      values = c("chartreuse3", "salmon"),
+      guide = "none"  # Don't show a legend for outline colors
+    ) +
+    # Customize labels
+    labs(
+      title = "Variable selection frequency",
+      x = "Times selected more than permuted copy",
+      y = NULL
+    ) +
+    # Apply theme
     theme_light() +
     theme(
-      legend.position = c(.2, .8),
-      legend.direction = "vertical",
-      legend.background = element_rect(colour = "transparent", fill = ggplot2::alpha("white", 0.2)),
-      strip.background = element_rect(fill = "cornsilk"),
-      strip.text = element_text(colour = "black"),
-      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)
+      legend.position = "bottom",
+      legend.title = element_text(hjust = 0.5)
     )
 
-  # Add importance threshold line if available
-  if (!is.na(upperBorderOfNonImportance)) {
-    pVarimp_Test_actual <- pVarimp_Test_actual +
-      geom_hline(yintercept = upperBorderOfNonImportance, linetype = "dashed", color = "red") +
-      annotate("text", x = .5, y = 1.05 * upperBorderOfNonImportance,
-               label = "Limit of alpha error inflation", color = "red", hjust = -.5)
+  # Create circular barplot with improved visibility for values near zero
+  varSelectionRadial <- ggplot(data = dfVars) +
+    # Make custom panel grid
+    geom_hline(
+      aes(yintercept = y),
+      data.frame(y = seq(0, max(dfVars$SelectedTrueCorr, na.rm = TRUE) + 5, by = 5)),
+      color = "lightgrey"
+    ) +
+    # Add bars with colored outlines based on sign
+    geom_col(
+      aes(
+        x = reorder(Var, SelectedTrueCorr),
+        y = SelectedTrueCorr,
+        fill = SelectedTrueCorr,
+        color = SelectedTrueCorr > 0  # Use boolean to determine outline color
+      ),
+      position = "dodge2",
+      show.legend = TRUE,
+      alpha = 0.9
+    ) +
+    # Add zero line
+    geom_hline(yintercept = 0, linetype = "dashed", color = "salmon", size = 1) +
+    # Make it circular!
+    coord_polar() +
+    # Scale y axis so bars don't start in the center
+    scale_y_continuous(
+      limits = c(min(min(dfVars$SelectedTrueCorr, na.rm = TRUE) - 5, -5),
+                 max(dfVars$SelectedTrueCorr, na.rm = TRUE) + 5),
+      expand = c(0, 0)
+    ) +
+    # Use ghostwhite for mid values
+    scale_fill_gradient2(
+      "Selection Frequency",
+      low = "chartreuse",     # Green for negative values
+      mid = "ghostwhite",     # White for values near 0
+      high = "salmon",        # Salmon to red gradient for positive values
+      midpoint = 0
+    ) +
+    # Add color scale for outlines
+    scale_color_manual(
+      values = c("chartreuse3", "salmon"),
+      guide = "none"  # Don't show a legend for outline colors
+    ) +
+    # Customize guides
+    guides(
+      fill = guide_colorbar(
+        barwidth = 15, barheight = 0.5, title.position = "top", title.hjust = 0.5
+      )
+    ) +
+    # Customize theme
+    theme_minimal() +
+    theme(
+      # Remove axis ticks and text
+      axis.title = element_blank(),
+      axis.ticks = element_blank(),
+      axis.text.y = element_blank(),
+      # Use gray text for the variable names
+      axis.text.x = element_text(color = "gray12", size = 9),
+      # Move the legend to the bottom
+      legend.position = "bottom",
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor = element_blank()
+    ) +
+    # Add title
+    labs(
+      title = "Variable Selection Frequency",
+      subtitle = "Times selected more than permuted copy"
+    )
+
+  # Add annotations for scale
+  # First, calculate reasonable positions based on your data
+  max_y <- max(dfVars$SelectedTrueCorr, na.rm = TRUE)
+  scale_positions <- seq(0, max_y, by = 5)
+
+  # Add scale annotations
+  for(i in seq_along(scale_positions)) {
+    if(scale_positions[i] > 0) {  # Only annotate positive values
+      varSelectionRadial <- varSelectionRadial +
+        annotate(
+          "text",
+          x = length(dfVars$Var) + 0.5,  # Position at the end of the variables
+          y = scale_positions[i],
+          label = as.character(scale_positions[i]),
+          color = "gray12",
+          size = 3
+        )
+    }
   }
 
-  # Create frequency plot showing True vs Permuted
-  pdfVarFreq2 <- ggplot(data = dfVars) +
-    geom_bar(aes(y = reorder(Var, SelectedTrueCorr), x = SelectedTrue), fill = "dodgerblue", stat = "identity") +
-    geom_bar(aes(y = reorder(Var, SelectedTrueCorr), x = -SelectedPermuted), fill = "cornsilk4", stat = "identity") +
-    labs(title = "Variable selection frequency",
-         x = "Times selected",
-         y = NULL,
-         fill = "Feature class") +
-    theme_light()
-
-  # Create frequency plot showing difference (True - Permuted)
-  pdfVarFreq <- ggplot(data = dfVars) +
-    geom_bar(aes(y = reorder(Var, SelectedTrueCorr), x = SelectedTrueCorr), fill = "dodgerblue", stat = "identity") +
-    labs(title = "Variable selection frequency",
-         x = "Times selected more than permuted copy",
-         y = NULL,
-         fill = "Feature class") +
-    theme_light()
-
-  # Add vertical line at zero or at bootstrap threshold if available
-  if (!is.na(limtFreq)) {
-    pdfVarFreq <- pdfVarFreq +
-      geom_vline(xintercept = limtFreq, linetype = "dashed", color = "salmon")
-  } else {
-    pdfVarFreq <- pdfVarFreq +
-      geom_vline(xintercept = 0, linetype = "dashed", color = "salmon")
-  }
 
   # Save individual plots if enabled
   if (enable_plots && enable_file_output) {
@@ -355,24 +442,20 @@ Test_VarImps <- lapply(DataSetSizes, function(DatasetNr) {
       dir.create(output_dir, recursive = TRUE)
     }
 
-    # Save importance plot
-    importance_plot_file <- file.path(output_dir, paste0(output_prefix, "_", DatasetNr, "_importance.svg"))
-    ggsave(importance_plot_file, pVarimp_Test_actual, width = 10, height = 8)
-
-    # Save frequency plots
+    # Save frequency plot (standard bar plot)
     freq_plot_file <- file.path(output_dir, paste0(output_prefix, "_", DatasetNr, "_frequency.svg"))
-    ggsave(freq_plot_file, pdfVarFreq, width = 10, height = 8)
+    ggsave(freq_plot_file, varSelectionBar, width = 10, height = 8)
 
-    freq2_plot_file <- file.path(output_dir, paste0(output_prefix, "_", DatasetNr, "_frequency2.svg"))
-    ggsave(freq2_plot_file, pdfVarFreq2, width = 10, height = 8)
+    # Save circular frequency plot
+    freq_circular_plot_file <- file.path(output_dir, paste0(output_prefix, "_", DatasetNr, "_frequency_circular.svg"))
+    ggsave(freq_circular_plot_file, varSelectionRadial, width = 10, height = 10)
   }
 
   # Return results
   return(list(
     importance_data_long = dfVarimp_Test_Boruta_actual_long_all,
-    pVarimp_Test_actual = pVarimp_Test_actual,
-    pdfVarFreq2 = pdfVarFreq2,
-    pdfVarFreq = pdfVarFreq,
+    varSelectionBar = varSelectionBar,
+    varSelectionRadial = varSelectionRadial,
     limtFreq = limtFreq,
     dfVars = dfVars,
     important_vars = important_vars
@@ -398,7 +481,7 @@ plot_list <- lapply(DataSetSizes, function(ds) {
     ds
   }
 
-  Test_VarImps[[ds]]$pdfVarFreq + labs(title = title_text)
+  Test_VarImps[[ds]]$varSelectionBar + labs(title = title_text)
 })
 
 # Create plot grid
