@@ -1,127 +1,107 @@
-# genESOM Data Processing Pipeline
+# Error-Controlled Generative AI with Feature Importance Analysis
 
-## 🚧 Project Status: Under Development 🚧
-
-This repository contains a comprehensive data preparation, analysis, and augmentation pipeline specifically designed for biomedical research data using a neural network based generative AI (genESOM). The project is currently in active development.
+A pipeline implementing built-in error control mechanisms for self-organizing neural network generative AI (genESOM) through dimensionality change detection.
 
 ## Overview
 
-This pipeline offers a robust framework for processing, transforming, analyzing, and augmenting biomedical data. It's designed to handle common challenges in omics data including outlier detection, missing value imputation, data normalization, feature importance assessment, and synthetic data generation.
+This repository provides a comprehensive framework for biomedical data augmentation with automatic error control mechanisms. By leveraging Emergent Self-Organizing Maps (ESOM), the pipeline separates data structure learning from data generation, allowing for controlled dimensionality changes that can be exploited to detect error inflation in synthetic data generation.
 
-## Key Features
+The key innovation is the injection of a "diagnostic" signal that provides a data-based stopping point for augmentation, preserving the validity of AI-augmented datasets and preventing error inflation - a common problem in many generative AI approaches.
 
-### Data Preprocessing
-- **Distribution exploration** with automated visualization
-- **Intelligent transformation selection** using:
-  - Tukey's ladder of powers
-  - Box-Cox transformations
-- **Outlier detection and removal** using:
-  - Grubbs' test
-  - Boxplot method
-- **Missing value imputation** using missForest algorithm
-- **Back-transformation** of data to original scale
-- **Parallel processing** support for improved performance
+## Core Concept
 
-### ESOM U-matrix Generation
-- **Emergent Self-Organizing Map (ESOM)** training
-- **U-matrix, P-matrix, and Island visualizations**
-- **2D and 3D interactive visualizations**
-- **Density radius calculation** for synthetic data generation
-- **Percentage-based data normalization** options
-- **Toroid and non-toroid topology** support
-- **Detailed visual outputs** with customizable parameters
+Unlike most generative models, genESOM AI separates the learning of data structure from the actual data generation process. This unique approach allows for:
 
-### Feature Importance Analysis
-- **Boruta algorithm** for robust feature selection
-- **Multiple dataset comparison** to assess feature stability across:
-  - Original data
-  - Engineered data with permuted features
-  - Synthetic augmented data
-  - Reduced dataset option for split testing
-- **Statistical significance assessment** of features using bootstrapping
-- **Comprehensive visualization** of feature importance metrics
-- **Circular and bar plot visualizations** for easier feature comparison
+1. Generation of data with altered dimensionality from the training data
+2. Detection of dimensionality shifts as error indicators
+3. Implementation of automatic stopping criteria for data augmentation
+4. Preservation of feature importance stability across generated datasets
+
+## Key Components
+
+### Data Structure Learning
+- **ESOM U-matrix training** to capture the topological structure of data
+- **Density radius calculation** to guide synthetic data generation
+- **Dimensionality mapping** to track feature relationships
 
 ### Synthetic Data Generation
-- **Density-based data augmentation** using ESOM
-- **Configurable synthetic data generation** with flexible multipliers
-- **Quality assessment** of generated synthetic samples
+- **Density-based augmentation** with configurable generation rates
+- **Dimensionality-aware generation** that preserves important feature relationships
+- **Diagnostic signal injection** for error inflation detection
+- **Automatic stopping criteria** based on feature importance stability
+
+### Feature Importance Analysis
+- **Cross-variant comparison** of feature importance across:
+  - Original data
+  - Engineered data with permuted features
+  - Synthetic augmented data at various generation rates
+- **Error inflation detection** through feature importance shifts
+- **Comprehensive visualization** for detecting generation-related artifacts
+
+### Error Control Mechanisms
+- **Built-in diagnostics** for identifying when generation introduces errors
+- **Dimensionality change tracking** between original and generated datasets
+- **Statistical significance assessment** of feature importance shifts
+- **Quality validation** of synthetic samples
 
 ## Dependencies
 
 The pipeline requires several R packages:
 
-### Core Data Processing
-- readr, ggplot2, ComplexHeatmap
-- missForest, forecast, outliers, nortest
-- parallel, devtools (for installing ABCstats)
-- ABCstats (installed from GitHub)
+- Boruta, caret, reshape2 (for feature importance analysis)
+- Umatrix, dbt.DataIO (for ESOM training)
+- ggplot2, cowplot (for visualization)
+- parallel, pbmcapply (for performance optimization)
+- missForest, forecast, outliers (for data preprocessing)
 
-### ESOM Visualization
-- Umatrix, dbt.DataIO
-- rgl (for 3D visualization)
-- cowplot, dplyr
+## Installation
 
-### Feature Importance Analysis
-- Boruta, caret, reshape2
-- cowplot, pbmcapply
-- opdisDownsampling (for data splitting)
+Clone this repository and install the required R packages:
 
-## Configuration
 
-The pipeline is highly configurable, allowing you to control:
+## Feature Importance Pipeline Parameters
 
-- Data exploration options
-- Transformation methods
-- Outlier detection parameters
-- Missing value handling
-- Parallel processing settings
-- ESOM grid dimensions and visualization options
-- Feature importance analysis parameters
-- Synthetic data generation multipliers
-- Dataset types for comparative analysis
+- `output_dir`: Directory for saving results
+- `output_prefix`: Prefix for output files
+- `input_file`: Path to the input CSV file
+- `class_name`: Name of the target class column
+- `generation_multipliers`: Vector of multipliers for synthetic data generation
+- `base_generation_rate`: Base rate for data generation
+- `nIter`: Number of iterations for Boruta algorithm
+- `seed`: Random seed for reproducibility
+- `enable_plots`: Whether to generate and display plots
+- `enable_file_output`: Whether to save results to files
 
-## Usage
+## Outputs and Interpretation
 
-### ESOM U-matrix Training
+The pipeline generates visualizations and data that help detect error inflation:
 
-The ESOM U-matrix training module allows you to:
+1. **Feature importance stability plots** across generation multipliers
+2. **Dimensionality shift indicators** showing when generation introduces errors
+3. **Bar and radial plots** showing feature selection frequency changes
+4. **Comparative analysis** of feature importance across dataset variants
+5. **Statistical summaries** of significant variables and their stability
 
-1. Generate U-matrix visualizations from your processed data
-2. Create interactive 3D visualizations for better data exploration
-3. Calculate density radius for synthetic data generation
+## Applications
 
-<img src="./neighborhood_distances.svg">
+This approach is particularly valuable for:
 
-4. Save all necessary files for further analysis
+- Biomedical data augmentation with built-in quality control
+- Detecting the onset of error inflation in synthetic data generation
+- Establishing data-driven stopping points for augmentation
+- Preserving the validity of AI-augmented datasets
+- Comparative analysis of feature importance stability
 
-Configuration parameters at the top of the script allow you to customize:
-- ESOM grid dimensions
-- Visualization options
-- Output file paths and formats
-- Data processing options
+## License
 
-### Feature Importance Analysis
+This project is licensed under the GNU General Public License v3.0 (GPL-3.0)
 
-The feature importance analysis module allows you to:
+## Citation
 
-1. Process your data and identify significant features
-2. Compare feature importance across different data types:
-  - Original data
-  - Engineered data with permuted features
-  - Synthetic augmented data
-  - Reduced datasets (training/test splits)
-3. Generate visualizations showing feature selection frequency
-4. Create a summary table of significant features across all datasets
+If you use this pipeline in your research, please cite:
 
-Configuration parameters at the top of the script allow you to customize:
-- Number of iterations for feature selection
-- Generation multipliers for synthetic data
-- Dataset types to include in the analysis
-- Output file paths and formats
+[Citation information]
 
-Example configuration:
-```r
-# Define dataset types to analyze
-DataSetSizes <- c("original", "engineered_0", "reduced", "augmented_1_engineered", "augmented_5_engineered")
-```
+## References
+
+Ultsch, A., & Lötsch, J. (2024). [in preparation]

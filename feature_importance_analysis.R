@@ -1,553 +1,518 @@
-# Feature_Importance_Analysis.R
-# Script for feature importance assessment using Boruta
+#' Feature Importance Analysis Script
+#'
+#' This script analyzes feature importance using the Boruta algorithm with synthetic data enhancement.
+#' It takes processed data and:
+#' - Optionally generates synthetic samples based on original data distribution
+#' - Creates engineered variants with permuted features
+#' - Runs Boruta feature selection multiple times on different data variants
+#' - Calculates statistical significance of features across iterations
+#' - Visualizes feature importance with bar and radial plots
+#' - Exports results and visualizations to files
 
-# Handle working directory setting
-tryCatch({
-  if (exists("rstudioapi::getSourceEditorContext")) {
-    setwd(dirname(rstudioapi::getSourceEditorContext()$path))
-  }
-}, error = function(e) {
-  message("Unable to set working directory automatically. Please set it manually if needed.")
-})
+#### 1. Utility Functions ####
 
-# Source the synthetic data generation script
-source("generate_synthetic_data.R")
-
-# Load required libraries
-library(Boruta)
-library(ggplot2)
-library(reshape2)
-library(caret)
-library(parallel)
-library(pbmcapply)
-library(cowplot) # For plot_grid function
-
-# Set up parameters
-seed <- 42    # Main seed for reproducibility
-nIter <- 100
-list.of.seeds <- 1:nIter + seed - 1  # Creates seeds from 42 to 141
-nProc <- detectCores() - 1  # Use all but one core
-enable_plots <- TRUE
-enable_file_output <- TRUE
-output_dir <- "results"
-output_prefix <- "Feature_Importance"
-pfad_o <- output_dir
-pfad_r <- "/"
-
-# Configuration settings for data
-input_file <- "test.csv"                # Input data file
-class_name <- "Species"                 # Name of classes column
-output_file <- "test_processed.csv"     # Output processed data file
-
-# Generation parameters - control synthetic data generation
-generation_multipliers <- c(1, 5)  # Can be extended to any number of multipliers
-base_generation_rate <- 1          # Base rate of synthetic samples per original sample
-
-
-# Helper function to check for integer(0)
-is.integer0 <- function(x) {
-  is.integer(x) && length(x) == 0
+set_working_directory <- function() {
+  tryCatch({
+    if (exists("rstudioapi::getSourceEditorContext")) {
+      setwd(dirname(rstudioapi::getSourceEditorContext()$path))
+    }
+  }, error = function(e) {
+    message("Unable to set working directory automatically. Please set it manually if needed.")
+  })
 }
 
-# Load the processed data
-cat(sprintf("Loading data from %s...\n", output_file))
-if (file.exists(output_file)) {
-  data_df <- read.csv(output_file)
+is_integer0 <- function(x) is.integer(x) && length(x) == 0
 
-  # Ensure class column is a factor
-  data_df[[class_name]] <- as.factor(data_df[[class_name]])
+#### 2. Data Loading Functions ####
 
-  cat(sprintf("Loaded data with %d rows and %d columns\n",
-              nrow(data_df), ncol(data_df)))
-  cat("Class distribution:\n")
-  print(table(data_df[[class_name]]))
-} else {
-  stop(sprintf("Data file %s not found", output_file))
+load_data <- function(file, class_col) {
+  if (!file.exists(file)) stop(sprintf("Data file %s not found", file))
+  df <- read.csv(file, row.names = 1)
+  df[[class_col]] <- as.factor(df[[class_col]])
+  cat(sprintf("Loaded data: %d rows, %d columns\n", nrow(df), ncol(df)))
+  print(table(df[[class_col]]))
+  df
 }
 
-# Load the radius data
-cat("Loading density radius data...\n")
-if (file.exists(file.path(output_dir, paste0("Umx_radius.csv")))) {
-  radius_df <- read.csv(file.path(output_dir, paste0("Umx_radius.csv")))
-  RadiusData <- radius_df$RadiusByEM
-  cat(sprintf("Loaded radius: %f\n", RadiusData))
-} else {
-  # If file doesn't exist, check if RadiusData exists in environment
-  if (exists("RadiusData")) {
+load_radius <- function(output_dir) {
+  file <- file.path(output_dir, "Umx_radius.csv")
+  if (file.exists(file)) {
+    radius <- read.csv(file)$RadiusByEM
+    cat(sprintf("Loaded radius: %f\n", radius))
+    return(radius)
+  } else if (exists("RadiusData")) {
     cat(sprintf("Using radius from environment: %f\n", RadiusData))
+    return(RadiusData)
   } else {
     stop("Radius data not found. Please run radius calculation first.")
   }
 }
 
-# Handle data splitting only if needed
-needsDataSplit <- any(grepl("reduced", DataSetSizes))
+#### 3. Data Preparation ####
 
-# Optionally split data based on dataset types
-if (needsDataSplit) {
-  cat("Splitting data into training, test and validation sets...\n")
-  TestDataTrainingTestValidation <- opdisDownsampling::opdisDownsampling(
-    Data = within(data_df, rm(get(class_name))),
-    Cls = data_df[[class_name]],
-    Size = 0.8 * nrow(data_df),
+split_data <- function(df, class_col, seed, nProc) {
+  library(opdisDownsampling)
+  cat("Splitting data into train/test/validation...\n")
+  set.seed(seed)
+  split <- opdisDownsampling::opdisDownsampling(
+    Data = within(df, rm(get(class_col))),
+    Cls = df[[class_col]],
+    Size = 0.8 * nrow(df),
     Seed = seed,
     nTrials = 10000,
     MaxCores = nProc
   )
-
-  data_TrainingTest <- data_df[rownames(data_df) %in% TestDataTrainingTestValidation$ReducedInstances, ]
-  cat("Training/Test set class distribution:\n")
-  print(table(data_TrainingTest[[class_name]]))
-
-  data_Validation <- data_df[!rownames(data_df) %in% TestDataTrainingTestValidation$ReducedInstances, ]
-  cat("Validation set class distribution:\n")
-  print(table(data_Validation[[class_name]]))
-} else {
-  cat("Skipping data splitting (not required for current dataset types)\n")
+  train_test <- df[rownames(df) %in% split$ReducedInstances,]
+  validation <- df[!rownames(df) %in% split$ReducedInstances,]
+  list(train_test = train_test, validation = validation)
 }
 
-#################################### Evaluate variable importance ########################################################################
-
-# Define dataset types dynamically based on generation multipliers
-DataSetSizes <- c("original", "engineered_0")
-for (mult in generation_multipliers) {
-  DataSetSizes <- c(DataSetSizes, paste0("augmented_", mult, "_engineered"))
+make_engineered <- function(df, class_col, seed) {
+  set.seed(seed)
+  features <- setdiff(names(df), class_col)
+  for (col in features) {
+    df[[paste0(col, "_permuted")]] <- sample(df[[col]])
+  }
+  df
 }
-cat("Dataset types to analyze:", paste(DataSetSizes, collapse=", "), "\n")
 
-# To store significant variables from each dataset
-significant_variables <- list()
+make_augmented <- function(df, class_col, radius, gen_mult, base_rate, seed, gen_func, engineered = FALSE) {
+  set.seed(seed)
+  if (engineered) df <- make_engineered(df, class_col, seed)
+  temp <- df;
+  temp[[class_col]] <- NULL
+  gen <- gen_func(
+    Data = temp,
+    density_radius = radius,
+    gen_per_data = gen_mult * base_rate,
+    Cls = df[[class_col]]
+  )
+  out <- rbind.data.frame(
+    cbind.data.frame(gen$original_data, class = gen$original_classes),
+    cbind.data.frame(gen$generated_data, class = gen$generated_classes)
+  )
+  names(out)[names(out) == "class"] <- class_col
+  out
+}
 
-Test_VarImps <- lapply(DataSetSizes, function(DatasetNr) {
-  cat(sprintf("Processing dataset type: %s\n", DatasetNr))
-
-  # Extract generation multiplier from dataset name if applicable
-  gen_multiplier <- 1
-  if (grepl("augmented_", DatasetNr)) {
-    gen_multiplier <- as.numeric(gsub("augmented_([0-9]+)_.*", "\\1", DatasetNr))
-    cat(sprintf("Using generation multiplier: %d\n", gen_multiplier))
+get_dataset_variant <- function(type, df, class_col, seed, radius, base_rate, gen_mult, gen_func, train_test = NULL) {
+  if (type == "original") return(df)
+  if (type == "reduced") {
+    if (is.null(train_test)) stop("'reduced' dataset requested but not available")
+    return(train_test)
   }
+  if (type == "engineered_0") return(make_engineered(df, class_col, seed))
+  if (grepl("^augmented_\\d+_engineered$", type)) {
+    return(make_augmented(df, class_col, radius, gen_mult, base_rate, seed, gen_func, engineered = TRUE))
+  }
+  if (grepl("^augmented_\\d+$", type)) {
+    return(make_augmented(df, class_col, radius, gen_mult, base_rate, seed, gen_func, engineered = FALSE))
+  }
+  stop(paste("Unknown dataset type:", type))
+}
 
-  Imps_repeated <- pbmcapply::pbmclapply(list.of.seeds, function(x) {
-    cat(sprintf("  Running with seed: %d\n", x))
+#### 4. Boruta Feature Selection ####
 
-    # Select or generate appropriate dataset based on DatasetNr
-    if (DatasetNr == "original") {
-      data_actual <- data_df
-    } else if (DatasetNr == "reduced") {
-      # Use the already split data
-      if (!exists("data_TrainingTest")) {
-        stop("'reduced' dataset requested but data splitting wasn't performed")
-      }
-      data_actual <- data_TrainingTest
-      cat(sprintf("Using reduced dataset with %d rows\n", nrow(data_actual)))
-    } else if (DatasetNr == "engineered_0") {
-      set.seed(x)
-      # Create engineered dataset with permuted features
-      feature_cols <- setdiff(names(data_df), class_name)
-      data_actual <- data_df
+run_boruta <- function(df, class_col, seed) {
+  library(Boruta)
+  library(caret)
+  library(reshape2)
+  set.seed(seed)
+  idx <- createDataPartition(df[[class_col]], p = 0.67, list = FALSE)
+  train <- df[idx,]
+  formula <- as.formula(paste(class_col, "~ ."))
+  bor <- Boruta(formula, train, pValue = 0.0001, maxRuns = 100)
+  stats <- Boruta::attStats(bor)
+  stats$Var <- rownames(stats)
+  imp_long <- melt(bor$ImpHistory)
+  list(boruta = bor, stats = stats, imp_long = imp_long)
+}
 
-      # Add permuted features
-      for (col in feature_cols) {
-        data_actual[[paste0(col, "_permuted")]] <- sample(data_df[[col]])
-      }
-    } else if (grepl("augmented_.*_engineered", DatasetNr)) {
-      set.seed(x)
-      # Create engineered dataset with permuted features
-      feature_cols <- setdiff(names(data_df), class_name)
-      data_engineered <- data_df
+#### 5. Importance Aggregation and Plotting ####
 
-      # Add permuted features
-      for (col in feature_cols) {
-        data_engineered[[paste0(col, "_permuted")]] <- sample(data_df[[col]])
-      }
-
-      set.seed(x)
-      data_generated <- generate_synthetic_data(
-        Data = within(data_engineered, rm(get(class_name))),
-        density_radius = RadiusData,
-        gen_per_data = gen_multiplier * base_generation_rate,
-        Cls = data_engineered[[class_name]]
-      )
-
-      data_actual <- rbind.data.frame(
-        cbind.data.frame(data_generated$original_data, class = data_generated$original_classes),
-        cbind.data.frame(data_generated$generated_data, class = data_generated$generated_classes)
-      )
-      # Rename class column to match original
-      names(data_actual)[names(data_actual) == "class"] <- class_name
-    } else if (grepl("augmented_", DatasetNr)) {
-      set.seed(x)
-      data_generated <- generate_synthetic_data(
-        Data = within(data_df, rm(get(class_name))),
-        density_radius = RadiusData,
-        gen_per_data = gen_multiplier * base_generation_rate,
-        Cls = data_df[[class_name]]
-      )
-
-      data_actual <- rbind.data.frame(
-        cbind.data.frame(data_generated$original_data, class = data_generated$original_classes),
-        cbind.data.frame(data_generated$generated_data, class = data_generated$generated_classes)
-      )
-      # Rename class column to match original
-      names(data_actual)[names(data_actual) == "class"] <- class_name
-    } else if (grepl("augmented_", DatasetNr)) {
-      set.seed(x)
-      data_generated <- generate_synthetic_data(
-        Data = within(data_df, rm(get(class_name))),
-        density_radius = RadiusData,
-        gen_per_data = gen_multiplier * base_generation_rate,
-        Cls = data_df[[class_name]]
-      )
-
-      data_actual <- rbind.data.frame(
-        cbind.data.frame(data_generated$original_data, class = data_generated$original_classes),
-        cbind.data.frame(data_generated$generated_data, class = data_generated$generated_classes)
-      )
-      # Rename class column to match original
-      names(data_actual)[names(data_actual) == "class"] <- class_name
-    }
-
-    # Split data for Boruta analysis
-    set.seed(x)
-    inTraining <- createDataPartition(data_actual[[class_name]], p = .67, list = FALSE)
-    training <- data_actual[inTraining, ]
-
-    # Create formula for Boruta with dynamic class column name
-    boruta_formula <- as.formula(paste(class_name, "~ ."))
-
-    # Run Boruta feature selection
-    Test_Boruta_actual <- Boruta::Boruta(boruta_formula, training, pValue = 0.0001, maxRuns = 100)
-
-    # Process Boruta results
-    BorutaStats <- Boruta::attStats(Test_Boruta_actual)
-    BorutaStats$Var <- rownames(BorutaStats)
-
-    # Prepare importance data for plotting
-    dfVarimp_Test_Boruta_actual_long <- reshape2::melt(Test_Boruta_actual$ImpHistory)
-
-    return(list(
-      Test_Boruta_actual = Test_Boruta_actual,
-      BorutaStats = BorutaStats,
-      dfVarimp_Test_Boruta_actual_long = dfVarimp_Test_Boruta_actual_long
-    ))
-  }, mc.cores = 0.5 * nProc)
-
-  # Process results from all repetitions
-  BorutaStats_all <- do.call(rbind.data.frame, lapply(Imps_repeated, function(x) x$BorutaStats))
-
-  # Process permuted variables if they exist
-  if (!is.integer0(grep("permuted", BorutaStats_all$Var))) {
-    BorutaStats_all_permuted_notrejected <- BorutaStats_all[grep("permuted", BorutaStats_all$Var), ]
-    BorutaStats_all_permuted_notrejected <- BorutaStats_all_permuted_notrejected[BorutaStats_all_permuted_notrejected$decision == "Confirmed", ]
-
-    BorutaStats_all_notrejected <- BorutaStats_all[-grep("permuted", BorutaStats_all$Var), ]
-    BorutaStats_all_notrejected <- BorutaStats_all_notrejected[BorutaStats_all_notrejected$decision == "Confirmed", ]
+process_importance <- function(imps, seed) {
+  library(ggplot2)
+  stats_all <- do.call(rbind, lapply(imps, function(x) x$stats))
+  perm_idx <- grep("permuted", stats_all$Var)
+  if (!is_integer0(perm_idx)) {
+    perm_notrej <- stats_all[perm_idx,]
+    perm_notrej <- perm_notrej[perm_notrej$decision == "Confirmed",]
+    notrej <- stats_all[-perm_idx,]
+    notrej <- notrej[notrej$decision == "Confirmed",]
   } else {
-    BorutaStats_all_notrejected <- BorutaStats_all
-    BorutaStats_all_notrejected <- BorutaStats_all_notrejected[BorutaStats_all_notrejected$decision == "Confirmed", ]
+    notrej <- stats_all[stats_all$decision == "Confirmed",]
   }
-
-  # Count feature selection frequency
-  SelectedTrue <- data.frame(table(BorutaStats_all_notrejected$Var))
-
-  if (!is.integer0(grep("permuted", BorutaStats_all$Var))) {
-    SelectedPermuted <- data.frame(table(BorutaStats_all_permuted_notrejected$Var))
-    SelectedPermuted$Var2 <- gsub("_permuted", "", SelectedPermuted$Var1)
-    SelectedPermuted <- SelectedPermuted[SelectedPermuted$Var2 %in% SelectedTrue$Var1, ]
+  sel_true <- data.frame(table(notrej$Var))
+  if (!is_integer0(perm_idx)) {
+    sel_perm <- data.frame(table(perm_notrej$Var))
+    sel_perm$Var2 <- gsub("_permuted", "", sel_perm$Var1)
+    sel_perm <- sel_perm[sel_perm$Var2 %in% sel_true$Var1,]
   }
-
-  # Create data frame with variable selection statistics
-  if (!is.integer0(grep("permuted", BorutaStats_all$Var))) {
-    dfVars <- data.frame(Var = unique(BorutaStats_all$Var[-grep("permuted", BorutaStats_all$Var)]))
+  vars <- if (!is_integer0(perm_idx)) {
+    unique(stats_all$Var[-perm_idx])
+  } else unique(stats_all$Var)
+  df_vars <- data.frame(Var = vars)
+  rownames(df_vars) <- vars
+  df_vars$SelectedTrue <- sel_true$Freq[match(df_vars$Var, sel_true$Var1)]
+  if (!is_integer0(perm_idx)) {
+    df_vars$SelectedPermuted <- sel_perm$Freq[match(df_vars$Var, sel_perm$Var2)]
   } else {
-    dfVars <- data.frame(Var = unique(BorutaStats_all$Var))
+    df_vars$SelectedPermuted <- 0
   }
-
-  rownames(dfVars) <- dfVars$Var
-  dfVars$SelectedTrue <- SelectedTrue$Freq[match(dfVars$Var, SelectedTrue$Var1)]
-
-  if (!is.integer0(grep("permuted", BorutaStats_all$Var))) {
-    dfVars$SelectedPermuted <- SelectedPermuted$Freq[match(dfVars$Var, SelectedPermuted$Var2)]
+  df_vars[is.na(df_vars)] <- 0
+  df_vars$SelectedTrueCorr <- df_vars$SelectedTrue - df_vars$SelectedPermuted
+  limtFreq <- NA
+  if (!is_integer0(perm_idx)) {
+    nBootstrap <- 100000
+    set.seed(seed)
+    a_sample <- sample(df_vars$SelectedPermuted, nBootstrap, replace = TRUE)
+    b_sample <- sample(df_vars$SelectedTrue, nBootstrap, replace = TRUE)
+    FCs_ba_bootstrap <- b_sample - a_sample
+    limtFreq <- quantile(FCs_ba_bootstrap, probs = 0.95)
+    important_vars <- df_vars$Var[df_vars$SelectedTrueCorr > limtFreq]
   } else {
-    dfVars$SelectedPermuted <- NA
+    important_vars <- df_vars$Var[df_vars$SelectedTrueCorr > 0]
+  }
+  list(df_vars = df_vars, important_vars = important_vars, limtFreq = limtFreq, stats_all = stats_all)
+}
+
+plot_importance <- function(df_vars, title_suffix) {
+  library(ggplot2)
+  # Temporarily suppress automatic plotting
+  old_option <- options(ggplot2.print.object = FALSE)
+  on.exit(options(old_option))
+
+  bar <- ggplot(df_vars) +
+    geom_bar(aes(y = reorder(Var, SelectedTrueCorr), x = SelectedTrueCorr, fill = SelectedTrueCorr, color = SelectedTrueCorr > 0), stat = "identity") +
+    geom_vline(xintercept = 0, linetype = "dashed", color = "salmon") +
+    scale_fill_gradient2("Selection Frequency", low = "salmon", mid = "ghostwhite", high = "chartreuse2", midpoint = 0) +
+    scale_color_manual(values = c("chartreuse3", "salmon"), guide = "none") +
+    labs(title = paste("Variable selection frequency", title_suffix), x = "Times selected more than permuted copy", y = NULL) +
+    theme_light() +
+    theme(legend.position = "bottom", legend.title = element_text(hjust = 0.5))
+  radial <- ggplot(df_vars) +
+    geom_hline(aes(yintercept = y), data.frame(y = seq(0, max(df_vars$SelectedTrueCorr, na.rm = TRUE) + 5, by = 5)), color = "lightgrey") +
+    geom_col(aes(x = reorder(Var, SelectedTrueCorr), y = SelectedTrueCorr, fill = SelectedTrueCorr, color = SelectedTrueCorr > 0), position = "dodge2", alpha = 0.9) +
+    geom_hline(yintercept = 0, linetype = "dashed", color = "salmon", linewidth = 1) +
+    coord_polar() +
+    scale_y_continuous(limits = c(min(min(df_vars$SelectedTrueCorr, na.rm = TRUE) - 5, -5), max(df_vars$SelectedTrueCorr, na.rm = TRUE) + 5), expand = c(0, 0)) +
+    scale_fill_gradient2("Selection Frequency", low = "salmon", mid = "ghostwhite", high = "chartreuse2", midpoint = 0) +
+    scale_color_manual(values = c("chartreuse3", "salmon"), guide = "none") +
+    guides(fill = guide_colorbar(barwidth = 15, barheight = 0.5, title.position = "top", title.hjust = 0.5)) +
+    theme_minimal() +
+    theme(axis.title = element_blank(), axis.ticks = element_blank(), axis.text.y = element_blank(), axis.text.x = element_text(color = "gray12", size = 9), legend.position = "bottom", panel.grid.major.x = element_blank(), panel.grid.minor = element_blank()) +
+    labs(title = paste("Variable Selection Frequency", title_suffix), subtitle = "Times selected more than permuted copy")
+  list(bar = bar, radial = radial)
+}
+
+plot_importance_boxplot <- function(Imps_repeated, df_vars, title_suffix, seed) {
+  library(ggplot2)
+
+  # Define custom quantile function for boxplot
+  quantiles_100 <- function(x) {
+    r <- quantile(x, probs = c(0, 0.25, 0.5, 0.75, 1))
+    names(r) <- c("ymin", "lower", "middle", "upper", "ymax")
+    r
   }
 
-  dfVars[is.na(dfVars)] <- 0
-  dfVars$SelectedTrueCorr <- dfVars$SelectedTrue - dfVars$SelectedPermuted
-  dfVars$SelectedTrueCorrRel <- (dfVars$SelectedTrue - dfVars$SelectedPermuted) * (dfVars$SelectedTrue + dfVars$SelectedPermuted)
-
-  # Bootstrapping to determine significance thresholds
+  # Calculate bootstrap thresholds
   limtFreq <- NA
 
-  if (!is.integer0(grep("permuted", BorutaStats_all$Var))) {
+  if (!is_integer0(grep("permuted", df_vars$Var))) {
     nBootstrap <- 100000
-    a <- dfVars$SelectedPermuted
-    b <- dfVars$SelectedTrue
-
+    a <- df_vars$SelectedPermuted
+    b <- df_vars$SelectedTrue
     set.seed(seed)
     a_sample <- sample(a, nBootstrap, replace = TRUE)
     set.seed(seed)
     b_sample <- sample(b, nBootstrap, replace = TRUE)
-
     FCs_ba_bootstrap <- b_sample - a_sample
     limtFreq <- quantile(FCs_ba_bootstrap, probs = 0.95)
-
-    # Store variables that exceed the threshold
-    important_vars <- dfVars$Var[which(dfVars$SelectedTrueCorr > limtFreq)]
-    significant_variables[[DatasetNr]] <- important_vars
-  } else {
-    # If no permuted variables, use positive SelectedTrueCorr as significant
-    important_vars <- dfVars$Var[which(dfVars$SelectedTrueCorr > 0)]
-    significant_variables[[DatasetNr]] <- important_vars
   }
 
-  # Combine importance data from all repetitions
-  dfVarimp_Test_Boruta_actual_long_all <- do.call(rbind.data.frame,
-                                                  lapply(Imps_repeated, function(x) x$dfVarimp_Test_Boruta_actual_long))
+  # Extract importance data
+  imp_long_all <- do.call(rbind.data.frame, lapply(Imps_repeated, function(x) x$imp_long))
 
-  # Create frequency plot showing difference (True - Permuted) with consistent color scheme
-  varSelectionBar <- ggplot(data = dfVars) +
-    geom_bar(
-      aes(
-        y = reorder(Var, SelectedTrueCorr),
-        x = SelectedTrueCorr,
-        fill = SelectedTrueCorr,
-        color = SelectedTrueCorr > 0  # Use boolean to determine outline color
-      ),
-      stat = "identity"
-    ) +
-    # Add zero line
-    geom_vline(xintercept = 0, linetype = "dashed", color = "salmon") +
-    # Apply the same color gradient as the circular plot
-    scale_fill_gradient2(
-      "Selection Frequency",
-      low = "chartreuse",     # Green for negative values
-      mid = "ghostwhite",     # White for values near 0
-      high = "salmon",        # Salmon to red gradient for positive values
-      midpoint = 0
-    ) +
-    # Add color scale for outlines
-    scale_color_manual(
-      values = c("chartreuse3", "salmon"),
-      guide = "none"  # Don't show a legend for outline colors
-    ) +
-    # Customize labels
-    labs(
-      title = "Variable selection frequency",
-      x = "Times selected more than permuted copy",
-      y = NULL
-    ) +
-    # Apply theme
+  # Add color variable for different feature types
+  imp_long_all$ColorVar <- "True"
+  if (!is_integer0(grep("permuted", imp_long_all$Var2))) {
+    imp_long_all$ColorVar[grep("permuted", imp_long_all$Var2)] <- "Permuted"
+  }
+  imp_long_all$ColorVar[grep("shadow", imp_long_all$Var2)] <- "Dummy"
+
+  # Calculate upper border of non-importance
+  upperBorderOfNonImportance <- NA
+  if (!is_integer0(grep("permuted", imp_long_all$Var2))) {
+    stats_all <- do.call(rbind, lapply(Imps_repeated, function(x) x$stats))
+    upperBorderOfNonImportance <- quantile(stats_all$maxImp[grep("permuted", stats_all$Var)], prob = 1)
+  }
+
+  # Create importance boxplot
+  pVarimp_Test_actual <- ggplot(data = imp_long_all,
+                                aes(x = reorder(Var2, value), y = value, fill = factor(ColorVar))) +
+    stat_summary(fun.data = quantiles_100, geom = "boxplot", alpha = 0.2, width = 0.5, position = "dodge") +
+    scale_fill_manual(values = c("dodgerblue4", "chartreuse2", "salmon"),
+                      labels = c("Dummy", "True features", "Permuted features")) +
+    labs(title = paste("Variable importances -", title_suffix),
+         y = "Importance [% decrease in accuracy]",
+         x = NULL,
+         fill = "Feature class") +
     theme_light() +
     theme(
-      legend.position = "bottom",
-      legend.title = element_text(hjust = 0.5)
+      legend.position = c(.2, .8),
+      legend.direction = "vertical",
+      legend.background = element_rect(colour = "transparent", fill = ggplot2::alpha("white", 0.2)),
+      strip.background = element_rect(fill = "cornsilk"),
+      strip.text = element_text(colour = "black"),
+      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)
     )
 
-  # Create circular barplot with improved visibility for values near zero
-  varSelectionRadial <- ggplot(data = dfVars) +
-    # Make custom panel grid
-    geom_hline(
-      aes(yintercept = y),
-      data.frame(y = seq(0, max(dfVars$SelectedTrueCorr, na.rm = TRUE) + 5, by = 5)),
-      color = "lightgrey"
-    ) +
-    # Add bars with colored outlines based on sign
-    geom_col(
-      aes(
-        x = reorder(Var, SelectedTrueCorr),
-        y = SelectedTrueCorr,
-        fill = SelectedTrueCorr,
-        color = SelectedTrueCorr > 0  # Use boolean to determine outline color
-      ),
-      position = "dodge2",
-      show.legend = TRUE,
-      alpha = 0.9
-    ) +
-    # Add zero line
-    geom_hline(yintercept = 0, linetype = "dashed", color = "salmon", size = 1) +
-    # Make it circular!
-    coord_polar() +
-    # Scale y axis so bars don't start in the center
-    scale_y_continuous(
-      limits = c(min(min(dfVars$SelectedTrueCorr, na.rm = TRUE) - 5, -5),
-                 max(dfVars$SelectedTrueCorr, na.rm = TRUE) + 5),
-      expand = c(0, 0)
-    ) +
-    # Use ghostwhite for mid values
-    scale_fill_gradient2(
-      "Selection Frequency",
-      low = "chartreuse",     # Green for negative values
-      mid = "ghostwhite",     # White for values near 0
-      high = "salmon",        # Salmon to red gradient for positive values
-      midpoint = 0
-    ) +
-    # Add color scale for outlines
-    scale_color_manual(
-      values = c("chartreuse3", "salmon"),
-      guide = "none"  # Don't show a legend for outline colors
-    ) +
-    # Customize guides
-    guides(
-      fill = guide_colorbar(
-        barwidth = 15, barheight = 0.5, title.position = "top", title.hjust = 0.5
-      )
-    ) +
-    # Customize theme
-    theme_minimal() +
-    theme(
-      # Remove axis ticks and text
-      axis.title = element_blank(),
-      axis.ticks = element_blank(),
-      axis.text.y = element_blank(),
-      # Use gray text for the variable names
-      axis.text.x = element_text(color = "gray12", size = 9),
-      # Move the legend to the bottom
-      legend.position = "bottom",
-      panel.grid.major.x = element_blank(),
-      panel.grid.minor = element_blank()
-    ) +
-    # Add title
-    labs(
-      title = "Variable Selection Frequency",
-      subtitle = "Times selected more than permuted copy"
-    )
-
-  # Add annotations for scale
-  # First, calculate reasonable positions based on your data
-  max_y <- max(dfVars$SelectedTrueCorr, na.rm = TRUE)
-  scale_positions <- seq(0, max_y, by = 5)
-
-  # Add scale annotations
-  for(i in seq_along(scale_positions)) {
-    if(scale_positions[i] > 0) {  # Only annotate positive values
-      varSelectionRadial <- varSelectionRadial +
-        annotate(
-          "text",
-          x = length(dfVars$Var) + 0.5,  # Position at the end of the variables
-          y = scale_positions[i],
-          label = as.character(scale_positions[i]),
-          color = "gray12",
-          size = 3
-        )
-    }
+  # Add reference line for non-importance threshold if available
+  if (!is.na(upperBorderOfNonImportance)) {
+    pVarimp_Test_actual <- pVarimp_Test_actual +
+      geom_hline(yintercept = upperBorderOfNonImportance, linetype = "dashed", color = "red") +
+      annotate("text", x = 0.5, y = 1.05 * upperBorderOfNonImportance,
+               label = "Limit of alpha error inflation", color = "red", hjust = -0.5)
   }
 
-
-  # Save individual plots if enabled
-  if (enable_plots && enable_file_output) {
-    # Create output directory if it doesn't exist
-    if (!dir.exists(output_dir)) {
-      dir.create(output_dir, recursive = TRUE)
-    }
-
-    # Save frequency plot (standard bar plot)
-    freq_plot_file <- file.path(output_dir, paste0(output_prefix, "_", DatasetNr, "_frequency.svg"))
-    ggsave(freq_plot_file, varSelectionBar, width = 10, height = 8)
-
-    # Save circular frequency plot
-    freq_circular_plot_file <- file.path(output_dir, paste0(output_prefix, "_", DatasetNr, "_frequency_circular.svg"))
-    ggsave(freq_circular_plot_file, varSelectionRadial, width = 10, height = 10)
-  }
-
-  # Return results
-  return(list(
-    importance_data_long = dfVarimp_Test_Boruta_actual_long_all,
-    varSelectionBar = varSelectionBar,
-    varSelectionRadial = varSelectionRadial,
+  list(
+    plot = pVarimp_Test_actual,
     limtFreq = limtFreq,
-    dfVars = dfVars,
-    important_vars = important_vars
-  ))
-})
+    upperBorderOfNonImportance = upperBorderOfNonImportance
+  )
+}
 
-# Assign names to results list
-names(Test_VarImps) <- DataSetSizes
+#### 6. Main Pipeline ####
 
-# Create combined plot of frequency differences
-cat("Creating combined plot...\n")
+feature_importance_pipeline <- function(
+  output_dir = "results",
+  output_prefix = "Feature_Importance",
+  input_file = "test_processed.csv",
+  class_name = "Species",
+  generation_multipliers = c(1, 5),
+  base_generation_rate = 1,
+  nIter = 100,
+  seed = 42,
+  enable_plots = TRUE,
+  enable_file_output = TRUE
+) {
+  # Setup environment
+  set_working_directory()
+  source("generate_synthetic_data.R")
+  library(parallel);
+  library(pbmcapply);
+  library(cowplot)
 
-# Create a list of plots for the grid
-plot_list <- lapply(DataSetSizes, function(ds) {
-  title_text <- if(ds == "original") {
-    "Normal data: Original"
-  } else if(ds == "engineered_0") {
-    "Normal data: Engineered 0"
-  } else if(grepl("augmented_", ds)) {
-    gen_multiplier <- as.numeric(gsub("augmented_([0-9]+)_.*", "\\1", ds))
-    sprintf("Normal data: Augmented %d, engineered", gen_multiplier)
-  } else {
-    ds
+  nProc <- detectCores() - 1
+  list.of.seeds <- seed + 0:(nIter - 1)
+
+  # Create output directory if needed
+  if (enable_file_output && !dir.exists(output_dir)) {
+    dir.create(output_dir, recursive = TRUE)
   }
 
-  Test_VarImps[[ds]]$varSelectionBar + labs(title = title_text)
-})
+  # Load and prepare data
+  data_df <- load_data(input_file, class_name)
+  RadiusData <- load_radius(output_dir)
 
-# Create plot grid
-pTest_Varfreqs_all <- do.call(plot_grid, c(
-  plot_list,
-  list(labels = LETTERS[1:length(DataSetSizes)],
-       nrow = 1,
-       align = "h",
-       axis = "tb")
-))
+  # Configure dataset variants for analysis
+  analysisDatasetVariants <- c("original", "engineered_0")
+  for (mult in generation_multipliers) {
+    analysisDatasetVariants <- c(analysisDatasetVariants, paste0("augmented_", mult, "_engineered"))
+  }
+  cat("Dataset types to analyze:", paste(analysisDatasetVariants, collapse = ", "), "\n")
 
-print(pTest_Varfreqs_all)
+  # Prepare data split if needed for "reduced" variants
+  split <- if (any(grepl("reduced", analysisDatasetVariants))) {
+    split_data(data_df, class_name, seed, nProc)
+  } else {
+    list()
+  }
 
-# Save combined plot
-if (enable_file_output) {
-  svg_file <- file.path(pfad_o, pfad_r, "pnoEffect_Varfreqs_aug100.svg")
-  ggsave(filename = svg_file, plot = pTest_Varfreqs_all, width = 20, height = 10, limitsize = FALSE)
+  # Initialize results containers
+  featureImportanceResults <- list()
+  significant_variables <- list()
 
-  # Also save as PNG for easier viewing
-  png_file <- file.path(pfad_o, pfad_r, "pnoEffect_Varfreqs_aug100.png")
-  ggsave(filename = png_file, plot = pTest_Varfreqs_all, width = 20, height = 10, limitsize = FALSE, dpi = 300)
+  # Initialize plot lists with named elements
+  plot_list_bars <- structure(vector("list", length(analysisDatasetVariants)), names = analysisDatasetVariants)
+  plot_list_radial <- structure(vector("list", length(analysisDatasetVariants)), names = analysisDatasetVariants)
+  plot_list_boxplots <- structure(vector("list", length(analysisDatasetVariants)), names = analysisDatasetVariants)
+
+  # Process each dataset variant
+  for (dataset_variant in analysisDatasetVariants) {
+    cat(sprintf("Processing dataset type: %s\n", dataset_variant))
+
+    # Extract generation multiplier for augmented datasets
+    gen_multiplier <- if (grepl("augmented_", dataset_variant)) {
+      as.numeric(gsub("augmented_([0-9]+)_.*", "\\1", dataset_variant))
+    } else {
+      1
+    }
+
+    # Run Boruta feature selection in parallel
+    Imps_repeated <- pbmcapply::pbmclapply(list.of.seeds, function(s) {
+      # Get appropriate dataset variant
+      df_variant <- get_dataset_variant(
+        dataset_variant, data_df, class_name, s, RadiusData,
+        base_generation_rate, gen_multiplier, generate_synthetic_data,
+        train_test = split$train_test
+      )
+      # Run Boruta on this dataset
+      run_boruta(df_variant, class_name, s)
+    }, mc.cores = nProc)
+
+    # Process importance results
+    imp_proc <- process_importance(Imps_repeated, seed)
+
+    # Generate frequency plots
+    freq_plots <- plot_importance(imp_proc$df_vars, dataset_variant)
+
+    # Generate boxplot
+    boxplot_results <- plot_importance_boxplot(Imps_repeated, imp_proc$df_vars, dataset_variant, seed)
+
+    # Store results
+    featureImportanceResults[[dataset_variant]] <- list(
+      df_vars = imp_proc$df_vars,
+      important_vars = imp_proc$important_vars,
+      bar_plot = freq_plots$bar,
+      radial_plot = freq_plots$radial,
+      importance_boxplot = boxplot_results$plot,
+      limtFreq = boxplot_results$limtFreq,
+      upperBorderOfNonImportance = boxplot_results$upperBorderOfNonImportance
+    )
+    significant_variables[[dataset_variant]] <- imp_proc$important_vars
+
+    # Store plots for combined view
+    plot_list_bars[[dataset_variant]] <- freq_plots$bar
+    plot_list_radial[[dataset_variant]] <- freq_plots$radial
+    plot_list_boxplots[[dataset_variant]] <- boxplot_results$plot
+
+    # # Display plots
+    # if (enable_plots) {
+    #   print(freq_plots$bar)
+    #   print(freq_plots$radial)
+    #   print(boxplot_results$plot)
+    # }
+
+    # Save individual plots if requested
+    if (enable_plots && enable_file_output) {
+      ggsave(
+        file.path(output_dir, paste0(output_prefix, "_", dataset_variant, "_frequency.svg")),
+        freq_plots$bar, width = 10, height = 8
+      )
+      ggsave(
+        file.path(output_dir, paste0(output_prefix, "_", dataset_variant, "_frequency_circular.svg")),
+        freq_plots$radial, width = 10, height = 10
+      )
+      ggsave(
+        file.path(output_dir, paste0(output_prefix, "_", dataset_variant, "_importance_boxplot.svg")),
+        boxplot_results$plot, width = 12, height = 8
+      )
+    }
+  }
+
+  # Create combined plots
+  if (enable_plots) {
+    # Extract plots from results list in correct order
+    plot_list_bars <- lapply(analysisDatasetVariants, function(ds) featureImportanceResults[[ds]]$bar_plot)
+    plot_list_radial <- lapply(analysisDatasetVariants, function(ds) featureImportanceResults[[ds]]$radial_plot)
+    plot_list_boxplots <- lapply(analysisDatasetVariants, function(ds) featureImportanceResults[[ds]]$importance_boxplot)
+
+    # Create combined bar plot
+    p_bars <- do.call(plot_grid, c(
+      plot_list_bars,
+      list(labels = LETTERS[1:length(analysisDatasetVariants)], nrow = 1, align = "h", axis = "tb")
+    ))
+
+    # Create combined radial plot
+    p_radial <- do.call(plot_grid, c(
+      plot_list_radial,
+      list(labels = LETTERS[1:length(analysisDatasetVariants)], nrow = 1, align = "h", axis = "tb")
+    ))
+
+    # Create combined boxplot
+    p_boxplots <- do.call(plot_grid, c(
+      plot_list_boxplots,
+      list(labels = LETTERS[1:length(analysisDatasetVariants)], nrow = 1, align = "h", axis = "tb")
+    ))
+
+    # Display combined plots - force printing explicitly
+    print(p_bars)
+    print(p_radial)
+    print(p_boxplots)
+
+    # Save combined plots if requested
+    if (enable_file_output) {
+      ggsave(file.path(output_dir, "p_Varfreqs_aug_bars.svg"), p_bars,
+             width = 20, height = 10, limitsize = FALSE)
+      ggsave(file.path(output_dir, "p_Varfreqs_aug_radial.svg"), p_radial,
+             width = 20, height = 10, limitsize = FALSE)
+      ggsave(file.path(output_dir, "p_Varfreqs_aug_boxplots.svg"), p_boxplots,
+             width = 20, height = 10, limitsize = FALSE)
+
+      ggsave(file.path(output_dir, "p_Varfreqs_aug_bars.png"), p_bars,
+             width = 20, height = 10, limitsize = FALSE, dpi = 300)
+      ggsave(file.path(output_dir, "p_Varfreqs_aug_radial.png"), p_radial,
+             width = 20, height = 10, limitsize = FALSE, dpi = 300)
+      ggsave(file.path(output_dir, "p_Varfreqs_aug_boxplots.png"), p_boxplots,
+             width = 20, height = 10, limitsize = FALSE, dpi = 300)
+    }
+  }
+
+  # Create significance summary table
+  all_vars <- unique(unlist(significant_variables))
+  significant_matrix <- matrix(0, nrow = length(all_vars), ncol = length(analysisDatasetVariants))
+  rownames(significant_matrix) <- all_vars
+  colnames(significant_matrix) <- analysisDatasetVariants
+
+  # Fill significance matrix
+  for (i in seq_along(analysisDatasetVariants)) {
+    ds <- analysisDatasetVariants[i]
+    vars <- featureImportanceResults[[ds]]$important_vars
+    significant_matrix[vars, i] <- 1
+  }
+
+  # Convert to data frame, add totals, and sort
+  significant_vars_df <- as.data.frame(significant_matrix)
+  significant_vars_df$SignificantCount <- rowSums(significant_vars_df)
+  significant_vars_df <- significant_vars_df[order(-significant_vars_df$SignificantCount, rownames(significant_vars_df)),]
+
+  # Display significance summary
+  print(significant_vars_df)
+
+  # Save results if requested
+  if (enable_file_output) {
+    write.csv(significant_vars_df,
+              file = file.path(output_dir, paste0(output_prefix, "_significant_variables.csv")),
+              row.names = TRUE)
+    save(featureImportanceResults, significant_vars_df, generation_multipliers,
+         file = file.path(output_dir, paste0(output_prefix, "_results.RData")))
+  }
+
+  cat("Feature importance analysis complete.\n")
+
+  # Return results for potential further use
+  invisible(list(
+    feature_importance = featureImportanceResults,
+    significant_variables = significant_vars_df,
+    p_bars = p_bars,
+    p_radial = p_radial,
+    p_boxplots = p_boxplots
+  ))
 }
 
-# Create table of significant variables (those that exceed the threshold)
-cat("Creating significant variables table...\n")
+#### 7. Run the pipeline ####
 
-# Get all unique variables across all datasets
-all_vars <- unique(unlist(sapply(DataSetSizes, function(ds) {
-  Test_VarImps[[ds]]$important_vars
-})))
-
-# Create matrix with 1/0 indicating if variable is significant in each dataset
-significant_matrix <- matrix(0, nrow = length(all_vars), ncol = length(DataSetSizes))
-rownames(significant_matrix) <- all_vars
-colnames(significant_matrix) <- DataSetSizes
-
-# Fill the matrix
-for (i in 1:length(DataSetSizes)) {
-  ds <- DataSetSizes[i]
-  vars <- Test_VarImps[[ds]]$important_vars
-  significant_matrix[vars, i] <- 1
-}
-
-# Convert to data frame and add count of datasets where variable is significant
-significant_vars_df <- as.data.frame(significant_matrix)
-significant_vars_df$SignificantCount <- rowSums(significant_vars_df)
-
-# Sort by significance count (descending)
-significant_vars_df <- significant_vars_df[order(-significant_vars_df$SignificantCount, rownames(significant_vars_df)), ]
-
-# Display the results
-cat("Significant variables by dataset:\n")
-print(significant_vars_df)
-
-# Save to CSV
-if (enable_file_output) {
-  significant_vars_file <- file.path(output_dir, paste0(output_prefix, "_significant_variables.csv"))
-  write.csv(significant_vars_df, file = significant_vars_file, row.names = TRUE)
-  cat(sprintf("Significant variables matrix saved to %s\n", significant_vars_file))
-}
-
-# Save all results
-if (enable_file_output) {
-  results_file <- file.path(output_dir, paste0(output_prefix, "_results.RData"))
-  save(Test_VarImps, significant_vars_df, generation_multipliers, file = results_file)
-  cat(sprintf("All feature importance results saved to %s\n", results_file))
-}
-
-cat("Feature importance analysis complete.\n")
+# Run the pipeline with parameters for the actual dataset
+test_result <- feature_importance_pipeline(
+  output_dir = "results/feature_importance",
+  output_prefix = "Feature_Importance_Analysis",
+  input_file = "test_processed.csv",
+  class_name = "Species",
+  generation_multipliers = c(1, 5),
+  base_generation_rate = 1,
+  nIter = 100,
+  seed = 123,
+  enable_plots = TRUE,
+  enable_file_output = TRUE
+)
