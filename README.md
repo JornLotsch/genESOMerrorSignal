@@ -98,10 +98,9 @@ This project is licensed under the GNU General Public License v3.0 (GPL-3.0)
 
 ## Citation
 
-If you use this pipeline in your research, please cite:
+For citation details or to request a formal publication reference, please contact the maintainer.
 
-[Citation information]
 
 ## References
 
-Ultsch, A., & Lötsch, J. (2024). [in preparation]
+ Lötsch, J, & Kringel D. (2025). [in preparation]
