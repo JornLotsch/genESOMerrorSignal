@@ -40,7 +40,7 @@ esom_columns <- 80                        # Number of columns in the ESOM grid
 esom_toroid <- TRUE                       # Whether to use a toroid topology
 esom_epochs <- 20                         # Number of training epochs
 enable_plots <- TRUE                      # Whether to create and display plots
-enable_percent_conversion <- TRUE        # Whether to convert data to percentage
+enable_percent_conversion <- TRUE         # Whether to convert data to percentage
 enable_3d_visualization <- TRUE           # Whether to create 3D visualizations
 enable_file_output <- TRUE                # Whether to save files to disk
 
@@ -127,14 +127,29 @@ create_3d_visualization <- function(umatrix, best_matches, cls, cls_colors, toro
 #' @param cls Class assignments
 #' @param prefix File prefix
 #' @param output_dir Output directory
+#' @param overwrite Logical; if TRUE, existing files will be overwritten (default FALSE)
 #' @examples
-#' save_umatrix_files(Umx, Pmx, Imx, Ustarmx, BMUmx, WTsUmx, Cls, "Umx", "output/")
-save_umatrix_files <- function(umx, pmx, imx, ustar_mx, bm, weights, cls, prefix, output_dir) {
+#' save_umatrix_files(Umx, Pmx, Imx, Ustarmx, BMUmx, WTsUmx, Cls, "Umx", "output/", overwrite = FALSE)
+save_umatrix_files <- function(
+  umx, pmx, imx, ustar_mx, bm, weights, cls, prefix, output_dir, overwrite = FALSE
+) {
   # Create directory if it doesn't exist
   if (!dir.exists(output_dir)) {
     dir.create(output_dir, recursive = TRUE)
   }
-
+  
+  # Main U-matrix file path
+  umx_file <- file.path(output_dir, paste0(prefix, ".umx"))
+  
+  # Check if file exists and handle overwrite logic
+  if (file.exists(umx_file) && !overwrite) {
+    cat(sprintf(
+      "A U-matrix file named '%s' already exists in '%s'.\nSkipping file creation. Set overwrite = TRUE to overwrite.\n",
+      paste0(prefix, ".umx"), output_dir
+    ))
+    return(invisible(NULL))
+  }
+  
   # Save files
   dbt.DataIO::WriteBM(FileName = paste0(prefix, ".bm"), BestMatches = bm, OutDirectory = output_dir)
   dbt.DataIO::WriteUMX(FileName = paste0(prefix, ".umx"), UMatrix = umx, OutDirectory = output_dir)
@@ -143,9 +158,52 @@ save_umatrix_files <- function(umx, pmx, imx, ustar_mx, bm, weights, cls, prefix
   dbt.DataIO::WriteIMX(FileName = paste0("Imx", prefix, ".imx"), MapMask = imx, OutDirectory = output_dir)
   dbt.DataIO::WriteWTS(FileName = paste0(prefix, ".wts"), wts = weights, OutDirectory = output_dir)
   dbt.DataIO::WriteCLS(FileName = paste0(prefix, ".cls"), Cls = cls, OutDirectory = output_dir)
-
-  cat(sprintf("U-matrix files saved with prefix '%s' to directory '%s'\n", prefix, output_dir))
+  
+  if (file.exists(umx_file) && overwrite) {
+    cat(sprintf(
+      "An existing U-matrix file named '%s' was overwritten in '%s'.\n",
+      paste0(prefix, ".umx"), output_dir
+    ))
+  } else {
+    cat(sprintf(
+      "U-matrix files saved with prefix '%s' to directory '%s'.\n",
+      prefix, output_dir
+    ))
+  }
 }
+
+#' Function to read U-matrix related files from disk
+#'
+#' @param prefix File prefix (same as used in saving)
+#' @param output_dir Output directory (same as used in saving)
+#' @return A list with elements: umx, pmx, imx, ustar_mx, bm, weights, cls
+#' @examples
+#' results <- read_umatrix_files("Umx", "output/")
+read_umatrix_files <- function(prefix, output_dir) {
+  # Helper to construct full file paths
+  file_path <- function(name) file.path(output_dir, name)
+  
+  # Read files
+  umx      <- dbt.DataIO::ReadUMX(file_path(paste0(prefix, ".umx")))
+  pmx      <- dbt.DataIO::ReadUMX(file_path(paste0("Pmx", prefix, ".umx")))
+  ustar_mx <- dbt.DataIO::ReadUMX(file_path(paste0("Umxstar", prefix, ".umx")))
+  imx      <- dbt.DataIO::ReadIMX(file_path(paste0("Imx", prefix, ".imx")))
+  bm       <- dbt.DataIO::ReadBM(file_path(paste0(prefix, ".bm")))
+  weights  <- dbt.DataIO::ReadWTS(file_path(paste0(prefix, ".wts")))
+  cls      <- dbt.DataIO::ReadCLS(file_path(paste0(prefix, ".cls")))
+  
+  # Return as a named list
+  list(
+    umx      = umx,
+    pmx      = pmx,
+    ustar_mx = ustar_mx,
+    imx      = imx,
+    bm       = bm,
+    weights  = weights,
+    cls      = cls
+  )
+}
+
 
 #' ============================
 #' Main script execution
@@ -287,15 +345,16 @@ if (enable_plots) {
 if (enable_file_output) {
   cat("Saving U-matrix files...\n")
   save_umatrix_files(
-    umx = umx_result$Umatrix,
-    pmx = pmx_result$PMatrix,
-    imx = imx_result$Imx,
+    umx      = umx_result$Umatrix,
+    pmx      = pmx_result$PMatrix,
+    imx      = imx_result$Imx,
     ustar_mx = pmx_result$UstarMatrix,
-    bm = umx_result$BestMatches,
-    weights = umx_result$Weights,
-    cls = umx_cls_result$Cls,
-    prefix = output_prefix,
-    output_dir = output_dir
+    bm       = umx_result$BestMatches,
+    weights  = umx_result$Weights,
+    cls      = umx_cls_result$Cls,
+    prefix   = output_prefix,
+    output_dir = output_dir,
+    overwrite = FALSE  
   )
 }
 
