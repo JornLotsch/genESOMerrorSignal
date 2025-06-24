@@ -32,9 +32,7 @@ def annotate_axes_3d(ax, text, fontsize=18):
     ax.text2D(0.05, 0.9, text, transform=ax.transAxes,
               ha="left", va="top", fontsize=fontsize, color="black")
 
-colors = ['#e6194B', '#3cb44b', '#4363d8', '#f58231', '#911eb4', '#42d4f4', '#f032e6',
-          '#469990', '#9A6324', '#800000', '#808000', '#000075', '#191970',
-          '#a9a9a9', '#000000']
+colors = ["#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"]
 
 sns.set_palette(sns.color_palette(colors))
 

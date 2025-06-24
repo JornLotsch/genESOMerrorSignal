@@ -1,4 +1,4 @@
-# Error-Controlled Generative AI with Feature Importance Analysis
+# Error-controlled generative AI with feature importance analysis
 
 A pipeline implementing built-in error control mechanisms for self-organizing neural network generative AI (genESOM) through dimensionality change detection.
 
@@ -8,27 +8,25 @@ This repository provides a comprehensive framework for biomedical data augmentat
 
 The key innovation is the injection of a "diagnostic" signal that provides a data-based stopping point for augmentation, preserving the validity of AI-augmented datasets and preventing error inflation - a common problem in many generative AI approaches.
 
+The repository contains relevant R and Python code.
+
 ## Core Concept
 
 Unlike most generative models, genESOM AI separates the learning of data structure from the actual data generation process. This unique approach allows for:
 
 1. Generation of data with altered dimensionality from the training data
-2. Detection of dimensionality shifts as error indicators
-3. Implementation of automatic stopping criteria for data augmentation
-4. Preservation of feature importance stability across generated datasets
+2. Implementation of stopping criteria for data augmentation
 
 ## Key Components
 
 ### Data Structure Learning
 - **ESOM U-matrix training** to capture the topological structure of data
 - **Density radius calculation** to guide synthetic data generation
-- **Dimensionality mapping** to track feature relationships
 
 ### Synthetic Data Generation
 - **Density-based augmentation** with configurable generation rates
-- **Dimensionality-aware generation** that preserves important feature relationships
 - **Diagnostic signal injection** for error inflation detection
-- **Automatic stopping criteria** based on feature importance stability
+- **Stopping criteria** based on feature importance stability
 
 ### Feature Importance Analysis
 - **Cross-variant comparison** of feature importance across:
@@ -36,13 +34,6 @@ Unlike most generative models, genESOM AI separates the learning of data structu
   - Engineered data with permuted features
   - Synthetic augmented data at various generation rates
 - **Error inflation detection** through feature importance shifts
-- **Comprehensive visualization** for detecting generation-related artifacts
-
-### Error Control Mechanisms
-- **Built-in diagnostics** for identifying when generation introduces errors
-- **Dimensionality change tracking** between original and generated datasets
-- **Statistical significance assessment** of feature importance shifts
-- **Quality validation** of synthetic samples
 
 ## Dependencies
 
@@ -56,7 +47,7 @@ The pipeline requires several R packages:
 
 ## Installation
 
-Clone this repository and install the required R packages:
+Clone this repository and install the required R packages. Some additional code is provided in Python. It has been tested so far in Python version 3.11.7 for Linux.
 
 
 ## Feature Importance Pipeline Parameters
