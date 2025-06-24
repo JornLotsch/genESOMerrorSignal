@@ -6,6 +6,7 @@
 main_analysis.R
 *.csv
 *.svg
+*.png
 .idea
 umatrix_output
 results
