@@ -2,7 +2,7 @@
 #'
 #' This script generates artificial test datasets for evaluating oversampling methods.
 #' It creates two types of datasets:
-#' - A "Normal effect" dataset with clear class separation
+#' - A "ascending significance" dataset with clear class separation
 #' - A "No effect" dataset where classes are indistinguishable
 #' Both datasets are useful for benchmarking feature selection and classification algorithms.
 
@@ -24,9 +24,9 @@ library(cowplot)   # For arranging multiple plots
 random_seed <- 42                # Base random seed for reproducibility
 n_iter <- 100             # Number of iterations for repeated testing
 
-#' Normal effect dataset parameters
-normal_effect_n <- 10     # Number of samples per class
-normal_effect_vars <- 50  # Number of variables to create
+#' ascending significance dataset parameters
+ascending_significance_n <- 10     # Number of samples per class
+ascending_significance_vars <- 50  # Number of variables to create
 
 #' No effect dataset parameters
 no_effect_cases <- 20     # Total number of samples
@@ -50,8 +50,8 @@ is.integer0 <- function(x) {
   is.integer(x) && length(x) == 0L
 }
 
-#' Function to generate dataset with normal effect
-generate_normal_effect_data <- function(n, n_vars, seed) {
+#' Function to generate dataset with ascending significance
+generate_ascending_significance_data <- function(n, n_vars, seed) {
   set.seed(seed)
 
   # Create sequences of means for the two classes
@@ -143,11 +143,11 @@ evaluate_dataset <- function(data, description) {
 # Set random seed for reproducibility
 set.seed(random_seed)
 
-# Generate dataset with normal effect (clear class separation)
-cat("Generating normal effect dataset...\n")
-normal_effect_data <- generate_normal_effect_data(
-  n = normal_effect_n,
-  n_vars = normal_effect_vars,
+# Generate dataset with ascending significance (clear class separation)
+cat("Generating ascending significance dataset...\n")
+ascending_significance_data <- generate_ascending_significance_data(
+  n = ascending_significance_n,
+  n_vars = ascending_significance_vars,
   seed = random_seed
 )
 
@@ -161,11 +161,11 @@ no_effect_data <- generate_no_effect_data(
 )
 
 # Evaluate datasets
-evaluate_dataset(normal_effect_data, "Normal Effect Dataset")
+evaluate_dataset(ascending_significance_data, "ascending significance Dataset")
 evaluate_dataset(no_effect_data, "No Effect Dataset")
 
 # Save datasets
-write.csv(normal_effect_data, "normal_effect_test_data.csv", row.names = FALSE)
+write.csv(ascending_significance_data, "ascending_significance_test_data.csv", row.names = FALSE)
 write.csv(no_effect_data, "no_effect_test_data.csv", row.names = FALSE)
 
 cat("\nTest data generation complete!\n")
