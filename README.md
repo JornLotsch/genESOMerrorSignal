@@ -23,6 +23,8 @@ Unlike most generative models, genESOM AI separates the learning of data structu
 - **ESOM U-matrix training** to capture the topological structure of data
 - **Density radius calculation** to guide synthetic data generation
 
+<img src="./neighborhood_distances.svg">
+
 ### Synthetic Data Generation
 - **Density-based augmentation** with configurable generation rates
 - **Diagnostic signal injection** for error inflation detection
