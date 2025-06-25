@@ -37,17 +37,21 @@ Unlike most generative models, genESOM AI separates the learning of data structu
 
 ## Dependencies
 
-The pipeline requires several R packages:
+The pipeline requires some R packages:
 
-- Boruta, caret, reshape2 (for feature importance analysis)
 - Umatrix, dbt.DataIO (for ESOM training)
+- Boruta, caret, reshape2 (for feature importance analysis)
 - ggplot2, cowplot (for visualization)
-- parallel, pbmcapply (for performance optimization)
-- missForest, forecast, outliers (for data preprocessing)
+- parallel, pbmcapply (for parallel processing)
+
+### Optional
+- missForest, forecast, outliers (for data preprocessing, if used)
 
 ## Installation
 
-Clone this repository and install the required R packages. Some additional code is provided in Python. It has been tested so far in Python version 3.11.7 for Linux.
+Clone this repository and install the required R packages. 
+
+Some additional code is provided in Python. It has been tested so far in Python version 3.11.7 for Linux.
 
 
 ## Feature Importance Pipeline Parameters
