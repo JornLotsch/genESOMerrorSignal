@@ -23,6 +23,8 @@ analyze_variable_importance <- function(data = Test_DataCls,
                                         data_reduced = Test_DataCls_TrainingTest,
                                         DataSetSizes = c("original", "engineered_0", "augmented_1_engineered", "augmented_5_engineered"),
                                         GenPerData = 1,
+                                        show_varfreq_limit = TRUE,
+                                        show_varimp_limit = TRUE,
                                         seed = 42,
                                         nIter = 100,
                                         max_cores = 10) {
@@ -212,9 +214,10 @@ analyze_variable_importance <- function(data = Test_DataCls,
       upper_limit_non_importance <- quantile(all_boruta_stats$maxImp[grep("permuted", all_boruta_stats$Var)], prob = 1)
     
     # Plot importance distributions
-    p_importance <- ggplot2::ggplot(data = all_importance_long, aes(x = reorder(Var2, value), y = value, fill = factor(ColorVar))) +
-      stat_summary(fun.data = quantiles_100, geom = "boxplot", alpha = 0.2, width = 0.5, position = "dodge") +
+    p_importance <- ggplot2::ggplot(data = all_importance_long, aes(x = reorder(Var2, value), y = value, fill = factor(ColorVar), color = factor(ColorVar))) +
+      stat_summary(fun.data = quantiles_95, geom = "boxplot", alpha = 0.2, width = 0.5, position = "dodge") +
       scale_fill_manual(values = c("dodgerblue4", "chartreuse2", "salmon"), labels = c("Dummy", "True features", "Permuted features")) +
+      scale_color_manual(values = c("dodgerblue4", "chartreuse2", "salmon"), labels = c("Dummy", "True features", "Permuted features")) +
       labs(title = "Variable importances", y = "Importance [% decrease in accuracy]", x = NULL, fill = "Feature class") +
       theme_light() +
       theme(
@@ -224,7 +227,7 @@ analyze_variable_importance <- function(data = Test_DataCls,
         axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)
       )
     
-    if (!is.na(upper_limit_non_importance)) {
+    if (!is.na(upper_limit_non_importance) && show_varimp_limit) {
       p_importance <- p_importance +
         geom_hline(yintercept = upper_limit_non_importance, linetype = "dashed", color = "red") +
         annotate("text", x = .5, y = 1.05 * upper_limit_non_importance, label = "Limit of alpha error inflation", color = "red", hjust = -.5)
@@ -243,7 +246,7 @@ analyze_variable_importance <- function(data = Test_DataCls,
         labs(title = "Variable selection frequency", x = "Times selected more than permuted copy", y = NULL, fill = "Feature class") +
         theme_light()
       
-      if (!is.na(feature_importance$freq_threshold)) {
+      if (!is.na(feature_importance$freq_threshold) && show_varfreq_limit) {
         p_selection_freq <- p_selection_freq + geom_vline(xintercept = feature_importance$freq_threshold, linetype = "dashed", color = "salmon")
       }
     }

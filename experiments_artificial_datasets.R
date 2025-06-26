@@ -24,6 +24,7 @@ library(ggplot2)
 library(parallel)
 library(opdisDownsampling)
 library(cowplot)
+library(patchwork)
 
 # ---- 2. Load Artificial Datasets --------------------------------------------
 
@@ -112,12 +113,14 @@ results_analyze_variable_importance <- analyze_variable_importance(
   data = ascending_significance_data,
   class_name = "Target",
   data_reduced = ascending_significance_data_TrainingTest, 
-  DataSetSizes = DataSetSizes
+  DataSetSizes = DataSetSizes,  
+  show_varfreq_limit = FALSE,
+  show_varimp_limit = TRUE,
 )
 
 # ---- 7. Plot Selection Frequency for Each Data Regime -----------------------
 
-plot_results_analyze_variable_importance <- cowplot::plot_grid(
+plot_ascending_significance_data_selection_freq <- cowplot::plot_grid(
   barplot_t_tests_p_ascending_significance_data,
   results_analyze_variable_importance$original$p_selection_freq + labs(title = "Original"),
   results_analyze_variable_importance$engineered_0$p_selection_freq + labs(title = "Engineered 0"),
@@ -127,16 +130,55 @@ plot_results_analyze_variable_importance <- cowplot::plot_grid(
   labels = "AUTO", 
   nrow = 1,
   align = "h", axis = "tb"
-)
+) + 
+  plot_annotation(
+    title = "Variable selection frequency",
+    subtitle = "Dataset: ascending_significance_data"
+  ) & 
+  theme(
+    plot.tag.position = c(0.5, 1),   # horizontally centered, at top edge
+    plot.tag = element_text(size = 14, face = "bold", vjust = 0, margin = margin(b = -10))
+  )
 
-print(plot_results_analyze_variable_importance)
 
 # Save the plot
 ggsave(
-  filename = "plot_results_analyze_variable_importance.svg",
-  plot = plot_results_analyze_variable_importance, 
-  width = 22, height = 9, limitsize = FALSE
+  filename = paste0("plot_ascending_significance_data_selection_freq", ".svg"),
+  plot = plot_ascending_significance_data_selection_freq, 
+  width = 22, height = 10, limitsize = FALSE
 )
+
+# ---- 7. Plot variable Importance for Augmentaion 5 as an example -----------------------
+
+plot_ascending_significance_data_var_importance <- cowplot::plot_grid(
+  results_analyze_variable_importance$original$p_importance + labs(title = "Original"), 
+    results_analyze_variable_importance$augmented_5_engineered$p_importance + labs(title = "Augmented 5, engineered"),
+    labels = "AUTO", 
+  nrow = 1,
+  align = "h", axis = "tb",
+  rel_widths = c(1,2)
+) + 
+  plot_annotation(
+    title = "Variable importance",
+    subtitle = "Dataset: ascending_significance_data"
+  ) & 
+  theme(
+    plot.tag.position = c(0.5, 1),   # horizontally centered, at top edge
+    plot.tag = element_text(size = 14, face = "bold", vjust = 0, margin = margin(b = -10))
+  )
+
+
+print(plot_ascending_significance_data_var_importance)
+
+# Save the plot
+ggsave(
+  filename = paste0("plot_ascending_significance_data_var_importance", ".svg"),
+  plot = plot_ascending_significance_data_var_importance, 
+  width = 20, height = 8, limitsize = FALSE
+)
+
+
+
 
 ###############################################################################
 # (Code for the second dataset will follow below)
