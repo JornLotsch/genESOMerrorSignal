@@ -15,8 +15,8 @@
 setwd("/home/joern/Aktuell/GenerativeESOM/08AnalyseProgramme/R/genESOMerrorSignal")
 
 # Source required helper scripts
-source("generate_synthetic_data.R")      # For synthetic data generation functions
-source("analyze_variable_importance.R")  # For variable importance analysis functions
+source("generate_synthetic_data.R") # For synthetic data generation functions
+source("analyze_variable_importance.R") # For variable importance analysis functions
 
 # Load required libraries
 library(reshape2)
@@ -36,13 +36,13 @@ ascending_significance_data <- read.csv("ascending_significance_test_data.csv")
 
 # Perform t-tests for each variable (excluding the target column)
 t_tests_p_ascending_significance_data <- apply(
-  ascending_significance_data[,-1], 2,
+  ascending_significance_data[, -1], 2,
   function(x) t.test(x ~ ascending_significance_data$Target)$p.value
 )
 
 # Prepare data for plotting
 t_tests_p_ascending_significance_data_long <- cbind.data.frame(
-  variable = names(t_tests_p_ascending_significance_data), 
+  variable = names(t_tests_p_ascending_significance_data),
   value = reshape2::melt(t_tests_p_ascending_significance_data)
 )
 t_tests_p_ascending_significance_data_long$variable <- factor(
@@ -53,14 +53,14 @@ t_tests_p_ascending_significance_data_long$variable <- factor(
 # ---- 4. Visualize Significance ----------------------------------------------
 
 barplot_t_tests_p_ascending_significance_data <- ggplot(
-  data = t_tests_p_ascending_significance_data_long, 
+  data = t_tests_p_ascending_significance_data_long,
   aes(y = variable, x = -log10(value))
 ) +
   geom_bar(stat = "identity", color = "cornsilk3", fill = "cornsilk2") +
   geom_vline(xintercept = -log10(0.05), color = "salmon", linetype = "dashed") +
   annotate(
     "text",
-    x = -log10(0.05), 
+    x = -log10(0.05),
     y = t_tests_p_ascending_significance_data_long$variable[1], # top variable
     label = "p = 0.05",
     hjust = -0.1,
@@ -91,17 +91,17 @@ ascending_significance_data_TestValidation <- opdisDownsampling::opdisDownsampli
 )
 
 ascending_significance_data_TrainingTest <- ascending_significance_data[
-  rownames(ascending_significance_data) %in% ascending_significance_data_TestValidation$ReducedInstances, ]
+  rownames(ascending_significance_data) %in% ascending_significance_data_TestValidation$ReducedInstances,]
 table(ascending_significance_data_TrainingTest$Target)
 
 ascending_significance_data_Validation <- ascending_significance_data[
-  !rownames(ascending_significance_data) %in% ascending_significance_data_TestValidation$ReducedInstances, ]
+  !rownames(ascending_significance_data) %in% ascending_significance_data_TestValidation$ReducedInstances,]
 table(ascending_significance_data_Validation$Target)
 
 # ---- 6. Feature Importance Analysis -----------------------------------------
 
 # Set parameters
-DataSetSizes <- c("original", "engineered_0", "augmented_1_engineered", 
+DataSetSizes <- c("original", "engineered_0", "augmented_1_engineered",
                   "augmented_5_engineered", "augmented_50_engineered")
 GenPerData <- 1
 nIter <- 100
@@ -112,8 +112,8 @@ list.of.seeds <- 1:nIter + seed - 1
 results_analyze_variable_importance <- analyze_variable_importance(
   data = ascending_significance_data,
   class_name = "Target",
-  data_reduced = ascending_significance_data_TrainingTest, 
-  DataSetSizes = DataSetSizes,  
+  data_reduced = ascending_significance_data_TrainingTest,
+  DataSetSizes = DataSetSizes,
   show_varfreq_limit = FALSE,
   show_varimp_limit = TRUE,
 )
@@ -127,16 +127,16 @@ plot_ascending_significance_data_selection_freq <- cowplot::plot_grid(
   results_analyze_variable_importance$augmented_1_engineered$p_selection_freq + labs(title = "Augmented 1, engineered"),
   results_analyze_variable_importance$augmented_5_engineered$p_selection_freq + labs(title = "Augmented 5, engineered"),
   results_analyze_variable_importance$augmented_50_engineered$p_selection_freq + labs(title = "Augmented 50, engineered"),
-  labels = "AUTO", 
+  labels = "AUTO",
   nrow = 1,
   align = "h", axis = "tb"
-) + 
+) +
   plot_annotation(
     title = "Variable selection frequency",
     subtitle = "Dataset: ascending_significance_data"
-  ) & 
+  ) &
   theme(
-    plot.tag.position = c(0.5, 1),   # horizontally centered, at top edge
+    plot.tag.position = c(0.5, 1), # horizontally centered, at top edge
     plot.tag = element_text(size = 14, face = "bold", vjust = 0, margin = margin(b = -10))
   )
 
@@ -144,26 +144,26 @@ plot_ascending_significance_data_selection_freq <- cowplot::plot_grid(
 # Save the plot
 ggsave(
   filename = paste0("plot_ascending_significance_data_selection_freq", ".svg"),
-  plot = plot_ascending_significance_data_selection_freq, 
+  plot = plot_ascending_significance_data_selection_freq,
   width = 22, height = 10, limitsize = FALSE
 )
 
 # ---- 7. Plot variable Importance for Augmentaion 5 as an example -----------------------
 
 plot_ascending_significance_data_var_importance <- cowplot::plot_grid(
-  results_analyze_variable_importance$original$p_importance + labs(title = "Original"), 
+  results_analyze_variable_importance$original$p_importance + labs(title = "Original"),
     results_analyze_variable_importance$augmented_5_engineered$p_importance + labs(title = "Augmented 5, engineered"),
-    labels = "AUTO", 
+    labels = "AUTO",
   nrow = 1,
   align = "h", axis = "tb",
-  rel_widths = c(1,2)
-) + 
+  rel_widths = c(1, 2)
+) +
   plot_annotation(
     title = "Variable importance",
     subtitle = "Dataset: ascending_significance_data"
-  ) & 
+  ) &
   theme(
-    plot.tag.position = c(0.5, 1),   # horizontally centered, at top edge
+    plot.tag.position = c(0.5, 1), # horizontally centered, at top edge
     plot.tag = element_text(size = 14, face = "bold", vjust = 0, margin = margin(b = -10))
   )
 
@@ -173,7 +173,7 @@ print(plot_ascending_significance_data_var_importance)
 # Save the plot
 ggsave(
   filename = paste0("plot_ascending_significance_data_var_importance", ".svg"),
-  plot = plot_ascending_significance_data_var_importance, 
+  plot = plot_ascending_significance_data_var_importance,
   width = 20, height = 8, limitsize = FALSE
 )
 
