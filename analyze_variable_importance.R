@@ -52,6 +52,7 @@ analyze_variable_importance <- function(data = Test_DataCls,
                                         class_name = "Target",
                                         data_reduced = Test_DataCls_TrainingTest,
                                         DataSetSizes = c("original", "engineered_0", "augmented_1_engineered", "augmented_5_engineered"),
+                                        density_radius, 
                                         GenPerData = 1,
                                         show_varfreq_limit = TRUE,
                                         show_varimp_limit = TRUE,
@@ -90,7 +91,7 @@ analyze_variable_importance <- function(data = Test_DataCls,
           # Generate synthetic data
           generated_data_list <- generate_synthetic_data(
             Data = engineered_data[, !(names(engineered_data) %in% "Target"), drop = FALSE],
-            density_radius = RadiusTesData,
+            density_radius = density_radius,
             gen_per_data = aug_n * GenPerData,
             Cls = engineered_data[["Target"]]
           )
@@ -102,7 +103,7 @@ analyze_variable_importance <- function(data = Test_DataCls,
           # Generate synthetic data from original features only
           generated_data_list <- generate_synthetic_data(
             Data = data[, !(names(data) %in% class_name), drop = FALSE],
-            density_radius = RadiusTesData,
+            density_radius = density_radius,
             gen_per_data = aug_n * GenPerData,
             Cls = data[[class_name]]
           )
@@ -248,7 +249,7 @@ analyze_variable_importance <- function(data = Test_DataCls,
       labs(title = "Variable importances", y = "Importance [% decrease in accuracy]", x = NULL, color = "Feature class", fill = "Feature class") +
       theme_light() +
       theme(
-        legend.position = c(.2, .8), legend.direction = "vertical",
+        legend.position.inside = TRUE, legend.position = c(.2, .8), legend.direction = "vertical",
         legend.background = element_rect(colour = "transparent", fill = ggplot2::alpha("white", 0.2)),
         strip.background = element_rect(fill = "cornsilk"), strip.text = element_text(colour = "black"),
         axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)
@@ -276,13 +277,13 @@ analyze_variable_importance <- function(data = Test_DataCls,
     # Plot selection frequencies if features were selected
     if (!is.null(dim(feature_importance$df_features))) {
       p_selection_freq2 <- ggplot2::ggplot(data = df_features) +
-        geom_bar(aes(y = reorder(Var, SelectedTrueCorr), x = SelectedTrue), fill = "#B37500", color = "#E69F00", alpha=0.3, stat = "identity") +
+        geom_bar(aes(y = reorder(Var, SelectedTrueCorr), x = SelectedTrue), fill = "#B37500", color = "#E69F00", alpha = 0.3, stat = "identity") +
         geom_bar(aes(y = reorder(Var, SelectedTrueCorr), x = -SelectedPermuted), fill = "#8C5C00", stat = "identity") +
         labs(title = "Variable selection frequency", x = "Times selected", y = NULL, fill = "Feature class", color = "Feature class") +
         theme_light()
 
       p_selection_freq <- ggplot2::ggplot(data = df_features) +
-        geom_bar(aes(y = reorder(Var, SelectedTrueCorr), x = SelectedTrueCorr), fill = "#8C5C00", color = "#E69F00", alpha=0.3, stat = "identity") +
+        geom_bar(aes(y = reorder(Var, SelectedTrueCorr), x = SelectedTrueCorr), fill = "#8C5C00", color = "#E69F00", alpha = 0.3, stat = "identity") +
         labs(title = "Variable selection frequency", x = "Times selected more than permuted copy", y = NULL, fill = "Feature class", color = "Feature class") +
         theme_light()
 
