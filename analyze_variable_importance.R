@@ -1,5 +1,35 @@
+###############################################################################
+# Helper Functions for Custom Boxplot Statistics
+# These functions are used to define the quantiles for boxplots in the 
+# variable importance analysis, ensuring that the boxes and whiskers represent
+# specific percentiles (e.g., central 95% or 100% intervals).
+###############################################################################
+
+#' Calculate 95% percentile boxplot statistics
+#' Returns a named vector for use with ggplot2::stat_summary (2.5%, 25%, 50%, 75%, 97.5%)
+quantiles_95 <- function(x) {
+  r <- quantile(x, probs = c(0.025, 0.25, 0.5, 0.75, 0.975))
+  names(r) <- c("ymin", "lower", "middle", "upper", "ymax")
+  r
+}
+
+#' Calculate 100% percentile boxplot statistics
+#' Returns a named vector for use with ggplot2::stat_summary (0%, 25%, 50%, 75%, 100%)
+quantiles_100 <- function(x) {
+  r <- quantile(x, probs = c(0.0, 0.25, 0.5, 0.75, 1))
+  names(r) <- c("ymin", "lower", "middle", "upper", "ymax")
+  r
+}
+
+#' Helper function to check for integer(0) objects
+is.integer0 <- function(x) {
+  is.integer(x) && length(x) == 0L
+}
+
+###############################################################################
+# Main Function: Analyze Variable Importance Across Different Data Regimes
+###############################################################################
 #' Analyze Variable Importance Across Different Data Regimes
-#'
 #' This function assesses the importance of features (variables) for predicting a target variable,
 #' using the Boruta algorithm across multiple data configurations (original, reduced, engineered, augmented).
 #' It supports parallel execution and returns importance statistics and plots.
@@ -246,13 +276,13 @@ analyze_variable_importance <- function(data = Test_DataCls,
     # Plot selection frequencies if features were selected
     if (!is.null(dim(feature_importance$df_features))) {
       p_selection_freq2 <- ggplot2::ggplot(data = df_features) +
-        geom_bar(aes(y = reorder(Var, SelectedTrueCorr), x = SelectedTrue), fill = "cornsilk2", color = "cornsilk", stat = "identity") +
-        geom_bar(aes(y = reorder(Var, SelectedTrueCorr), x = -SelectedPermuted), fill = "cornsilk3", stat = "identity") +
+        geom_bar(aes(y = reorder(Var, SelectedTrueCorr), x = SelectedTrue), fill = "#B37500", color = "#E69F00", alpha=0.3, stat = "identity") +
+        geom_bar(aes(y = reorder(Var, SelectedTrueCorr), x = -SelectedPermuted), fill = "#8C5C00", stat = "identity") +
         labs(title = "Variable selection frequency", x = "Times selected", y = NULL, fill = "Feature class", color = "Feature class") +
         theme_light()
 
       p_selection_freq <- ggplot2::ggplot(data = df_features) +
-        geom_bar(aes(y = reorder(Var, SelectedTrueCorr), x = SelectedTrueCorr), fill = "cornsilk3", color = "cornsilk", stat = "identity") +
+        geom_bar(aes(y = reorder(Var, SelectedTrueCorr), x = SelectedTrueCorr), fill = "#8C5C00", color = "#E69F00", alpha=0.3, stat = "identity") +
         labs(title = "Variable selection frequency", x = "Times selected more than permuted copy", y = NULL, fill = "Feature class", color = "Feature class") +
         theme_light()
 

@@ -56,7 +56,7 @@ barplot_t_tests_p_ascending_significance_data <- ggplot(
   data = t_tests_p_ascending_significance_data_long,
   aes(y = variable, x = -log10(value))
 ) +
-  geom_bar(stat = "identity", color = "cornsilk3", fill = "cornsilk2") +
+  geom_bar(stat = "identity", color = "#8C5C00", fill = "#B37500", alpha=0.3) +
   geom_vline(xintercept = -log10(0.05), color = "salmon", linetype = "dashed") +
   annotate(
     "text",
@@ -118,42 +118,13 @@ results_analyze_variable_importance <- analyze_variable_importance(
   show_varimp_limit = TRUE,
 )
 
-# ---- 7. Plot Selection Frequency for Each Data Regime -----------------------
-
-plot_ascending_significance_data_selection_freq <- cowplot::plot_grid(
-  barplot_t_tests_p_ascending_significance_data,
-  results_analyze_variable_importance$original$p_selection_freq + labs(title = "Original"),
-  results_analyze_variable_importance$engineered_0$p_selection_freq + labs(title = "Engineered 0"),
-  results_analyze_variable_importance$augmented_1_engineered$p_selection_freq + labs(title = "Augmented 1, engineered"),
-  results_analyze_variable_importance$augmented_5_engineered$p_selection_freq + labs(title = "Augmented 5, engineered"),
-  results_analyze_variable_importance$augmented_50_engineered$p_selection_freq + labs(title = "Augmented 50, engineered"),
-  labels = "AUTO",
-  nrow = 1,
-  align = "h", axis = "tb"
-) +
-  plot_annotation(
-    title = "Variable selection frequency",
-    subtitle = "Dataset: ascending_significance_data"
-  ) &
-  theme(
-    plot.tag.position = c(0.5, 1), # horizontally centered, at top edge
-    plot.tag = element_text(size = 14, face = "bold", vjust = 0, margin = margin(b = -10))
-  )
-
-
-# Save the plot
-ggsave(
-  filename = paste0("plot_ascending_significance_data_selection_freq", ".svg"),
-  plot = plot_ascending_significance_data_selection_freq,
-  width = 22, height = 10, limitsize = FALSE
-)
 
 # ---- 7. Plot variable Importance for Augmentaion 5 as an example -----------------------
 
 plot_ascending_significance_data_var_importance <- cowplot::plot_grid(
   results_analyze_variable_importance$original$p_importance + labs(title = "Original"),
-    results_analyze_variable_importance$augmented_5_engineered$p_importance + labs(title = "Augmented 5, engineered"),
-    labels = "AUTO",
+  results_analyze_variable_importance$augmented_5_engineered$p_importance + labs(title = "Augmented 5, engineered"),
+  labels = "AUTO",
   nrow = 1,
   align = "h", axis = "tb",
   rel_widths = c(1, 2)
@@ -177,7 +148,36 @@ ggsave(
   width = 20, height = 8, limitsize = FALSE
 )
 
+# ---- 8. Plot Selection Frequency for Each Data Regime -----------------------
 
+plot_ascending_significance_data_selection_freq <- cowplot::plot_grid(
+  barplot_t_tests_p_ascending_significance_data,
+  results_analyze_variable_importance$original$p_selection_freq + labs(title = "Original"),
+  results_analyze_variable_importance$engineered_0$p_selection_freq + labs(title = "Engineered 0"),
+  results_analyze_variable_importance$augmented_1_engineered$p_selection_freq + labs(title = "Augmented 1, engineered"),
+  results_analyze_variable_importance$augmented_5_engineered$p_selection_freq + labs(title = "Augmented 5, engineered"),
+  results_analyze_variable_importance$augmented_50_engineered$p_selection_freq + labs(title = "Augmented 50, engineered"),
+  labels = "AUTO",
+  nrow = 1,
+  align = "h", axis = "tb"
+) +
+  plot_annotation(
+    title = "Variable selection frequency",
+    subtitle = "Dataset: ascending_significance_data"
+  ) &
+  theme(
+    plot.tag.position = c(0.5, 1), # horizontally centered, at top edge
+    plot.tag = element_text(size = 14, face = "bold", vjust = 0, margin = margin(b = -10))
+  )
+
+print(plot_ascending_significance_data_selection_freq)
+
+# Save the plot
+ggsave(
+  filename = paste0("plot_ascending_significance_data_selection_freq", ".svg"),
+  plot = plot_ascending_significance_data_selection_freq,
+  width = 22, height = 10, limitsize = FALSE
+)
 
 
 ###############################################################################
