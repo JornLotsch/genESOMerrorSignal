@@ -16,19 +16,19 @@ tryCatch({
 })
 
 #' Load required libraries
-library(stats)     # For statistical functions
+library(stats) # For statistical functions
 
 #' Configuration settings
-random_seed <- 42                # Base random seed for reproducibility
+random_seed <- 42 # Base random seed for reproducibility
 
 #' ascending significance dataset parameters
-ascending_significance_n <- 10     # Number of samples per class
-ascending_significance_vars <- 50  # Number of variables to create
+ascending_significance_n <- 10 # Number of samples per class
+ascending_significance_vars <- 50 # Number of variables to create
 
 #' No effect dataset parameters
-no_effect_cases <- 20     # Total number of samples
-no_effect_vars <- 150     # Number of initial variables to create
-no_effect_final <- 50     # Number of variables to select for final dataset
+no_effect_cases <- 20 # Total number of samples
+no_effect_vars <- 150 # Number of initial variables to create
+no_effect_final <- 50 # Number of variables to select for final dataset
 
 #' ============================
 #' Dataset Generation Functions
