@@ -57,15 +57,17 @@ analyze_variable_importance <- function(data = Test_DataCls,
                                         show_varfreq_limit = TRUE,
                                         show_varimp_limit = TRUE,
                                         colorblind = TRUE,
+                                        mark_sig = TRUE,
+                                        sort_circular = FALSE,
                                         seed = 42,
                                         nIter = 100,
                                         max_cores = 10) {
   # Set up random seeds for reproducibility
   seeds <- 1:nIter + seed - 1
-
+  
   # Determine the number of cores to use (min of available -1 or max_cores)
   n_cores <- min((parallel::detectCores() - 1), max_cores)
-
+  
   # Initialize list to store results for each data regime
   results_by_regime <- lapply(DataSetSizes, function(data_regime) {
     # Run Boruta in parallel for each seed in this data regime
@@ -122,41 +124,41 @@ analyze_variable_importance <- function(data = Test_DataCls,
         feature_names <- names(data[, !(names(data) %in% class_name), drop = FALSE])
         names(current_data) <- c("Target", feature_names, paste0(feature_names, "_permuted"))
       }
-
+      
       # Split data into training and test (not used for Boruta here, but for consistency)
       set.seed(iter_seed)
       in_training <- caret::createDataPartition(current_data$Target, p = .67, list = FALSE)
       training_data <- current_data[in_training,]
-
+      
       # Run Boruta for feature selection
       boruta_result <- Boruta::Boruta(Target ~ ., training_data, pValue = 0.0001, maxRuns = 100)
       # Extract importance statistics
       boruta_stats <- Boruta::attStats(boruta_result)
       boruta_stats$Var <- rownames(boruta_stats)
-
+      
       # Reshape importance history for plotting
       importance_long <- reshape2::melt(boruta_result$ImpHistory)
       # Assign color codes for plotting: 1 = dummy, 2 = true, 3 = permuted
       importance_long$ColorVar <- ifelse(importance_long$Var2 %in% names(current_data), 2, 1)
       importance_long$ColorVar[grep("permuted", importance_long$Var2)] <- 3
-
+      
       return(list(
         boruta_result = boruta_result,
         boruta_stats = boruta_stats,
         importance_long = importance_long
       ))
     }, mc.cores = n_cores)
-
+    
     # Aggregate Boruta statistics across all iterations
     all_boruta_stats <- do.call(rbind.data.frame, lapply(importance_results, function(x) x$boruta_stats))
-
+    
     # Initialize feature importance summary list
     feature_importance <- list(
       df_features = NA,
       freq_threshold = NA,
       rel_freq_threshold = NA
     )
-
+    
     # Process selection frequencies for true and permuted features
     if (!is.integer0(grep("permuted", all_boruta_stats$Var))) {
       permuted_selected <- all_boruta_stats[grep("permuted", all_boruta_stats$Var),]
@@ -167,17 +169,17 @@ analyze_variable_importance <- function(data = Test_DataCls,
       true_selected <- all_boruta_stats
       true_selected <- true_selected[true_selected$decision == "Confirmed",]
     }
-
+    
     # Count selection frequencies for true features
     true_selection_counts <- data.frame(table(true_selected$Var))
-
+    
     # Count selection frequencies for permuted features (if any)
     if (!is.integer0(grep("permuted", all_boruta_stats$Var))) {
       permuted_selection_counts <- data.frame(table(permuted_selected$Var))
       permuted_selection_counts$Var2 <- gsub("_permuted", "", permuted_selection_counts$Var1)
       permuted_selection_counts <- permuted_selection_counts[permuted_selection_counts$Var2 %in% true_selection_counts$Var1,]
     }
-
+    
     # Prepare data frame with selection frequencies
     if (!is.integer0(grep("permuted", all_boruta_stats$Var))) {
       df_features <- data.frame(Var = unique(all_boruta_stats$Var[-grep("permuted", all_boruta_stats$Var)]))
@@ -191,13 +193,13 @@ analyze_variable_importance <- function(data = Test_DataCls,
     } else {
       df_features$SelectedPermuted <- NA
     }
-
+    
     # Replace NAs with 0
     df_features[is.na(df_features)] <- 0
     # Calculate corrected selection frequency
     df_features$SelectedTrueCorr <- df_features$SelectedTrue - df_features$SelectedPermuted
     df_features$SelectedTrueCorrRel <- (df_features$SelectedTrue - df_features$SelectedPermuted) * (df_features$SelectedTrue + df_features$SelectedPermuted)
-
+    
     # Bootstrap to determine significance thresholds (if permuted features present)
     if (!is.integer0(grep("permuted", all_boruta_stats$Var))) {
       n_bootstrap <- 100000
@@ -207,7 +209,7 @@ analyze_variable_importance <- function(data = Test_DataCls,
       true_sample <- sample(df_features$SelectedTrue, n_bootstrap, replace = TRUE)
       diff_bootstrap <- true_sample - permuted_sample
       freq_threshold <- quantile(diff_bootstrap, probs = 0.95)
-
+      
       # Relative frequency threshold
       set.seed(seed)
       permuted_sample_rel <- sample(df_features$SelectedPermuted, n_bootstrap, replace = TRUE)
@@ -220,29 +222,29 @@ analyze_variable_importance <- function(data = Test_DataCls,
       freq_threshold <- NA
       rel_freq_threshold <- NA
     }
-
+    
     # Prepare selection frequency vector
     select_freq <- as.vector(df_features$SelectedTrueCorr)
     names(select_freq) <- df_features$Var
     select_freq <- na.omit(select_freq)
     attributes(select_freq)$na.action <- NULL
-
+    
     # Update feature importance summary
     feature_importance <- list(
       df_features = df_features,
       freq_threshold = freq_threshold,
       rel_freq_threshold = rel_freq_threshold
     )
-
+    
     # Aggregate importance data for plotting
     all_importance_long <- do.call(rbind.data.frame, lapply(importance_results, function(x) x$importance_long))
-
+    
     # Determine upper limit of non-importance (for plotting)
     upper_limit_non_importance <- NA
     if (!is.integer0(grep("permuted", all_importance_long$Var2))) {
       upper_limit_non_importance <- quantile(all_boruta_stats$maxImp[grep("permuted", all_boruta_stats$Var)], prob = 1)
     }
-
+    
     # Plot importance distributions
     p_importance <- ggplot2::ggplot(data = all_importance_long, aes(x = reorder(Var2, value), y = value, fill = factor(ColorVar), color = factor(ColorVar))) +
       stat_summary(fun.data = quantiles_95, geom = "boxplot", alpha = 0.2, width = 0.5, position = "dodge") +
@@ -254,8 +256,8 @@ analyze_variable_importance <- function(data = Test_DataCls,
         strip.background = element_rect(fill = "cornsilk"), strip.text = element_text(colour = "black"),
         axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)
       )
-
-
+    
+    
     if (colorblind) {
       p_importance <- p_importance +
         scale_fill_manual(values = ggthemes::colorblind_pal()(8)[c(3, 2, 1)], labels = c("Dummy", "True features", "Permuted features")) +
@@ -267,13 +269,13 @@ analyze_variable_importance <- function(data = Test_DataCls,
         scale_color_manual(values = c("dodgerblue4", "chartreuse2", "salmon"), labels = c("Dummy", "True features", "Permuted features")) +
         guides(fill = "none")
     }
-
+    
     if (!is.na(upper_limit_non_importance) && show_varimp_limit) {
       p_importance <- p_importance +
         geom_hline(yintercept = upper_limit_non_importance, linetype = "dashed", color = "red") +
         annotate("text", x = .5, y = 1.05 * upper_limit_non_importance, label = "Limit of alpha error inflation", color = "red", hjust = -.5)
     }
-
+    
     # Plot selection frequencies if features were selected
     if (!is.null(dim(feature_importance$df_features))) {
       p_selection_freq2 <- ggplot2::ggplot(data = df_features) +
@@ -281,29 +283,73 @@ analyze_variable_importance <- function(data = Test_DataCls,
         geom_bar(aes(y = reorder(Var, SelectedTrueCorr), x = -SelectedPermuted), fill = "#8C5C00", stat = "identity") +
         labs(title = "Variable selection frequency", x = "Times selected", y = NULL, fill = "Feature class", color = "Feature class") +
         theme_light()
-
+      
       p_selection_freq <- ggplot2::ggplot(data = df_features) +
         geom_bar(aes(y = reorder(Var, SelectedTrueCorr), x = SelectedTrueCorr), fill = "#8C5C00", color = "#E69F00", alpha = 0.3, stat = "identity") +
         labs(title = "Variable selection frequency", x = "Times selected more than permuted copy", y = NULL, fill = "Feature class", color = "Feature class") +
         theme_light()
-
+      
       if (!is.na(feature_importance$freq_threshold) && show_varfreq_limit) {
         p_selection_freq <- p_selection_freq + geom_vline(xintercept = feature_importance$freq_threshold, linetype = "dashed", color = "salmon")
       }
-    }
+      
+      # Circular (polar) bar plot of selection frequencies
+      df_features$above_threshold <- df_features$SelectedTrueCorr > freq_threshold
 
+      if (sort_circular) df_features$Var <- factor(df_features$Var, levels = df_features$Var[order(df_features$SelectedTrueCorr, decreasing = TRUE)])
+      
+      p_selection_freq_circular <- ggplot2::ggplot(data = df_features) +
+        geom_bar(
+          aes(x = Var, y = SelectedTrueCorr, color = above_threshold),
+          fill = "#8C5C00", alpha = 0.7, stat = "identity", size = 1
+        ) +
+        coord_polar(start = 0) +
+        labs(
+          title = "Variable selection frequency",
+          x = NULL, y = "Times selected more than permuted copy"
+        ) +
+        theme_light() +
+        theme(
+          axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 8),
+          panel.grid = element_blank()
+        ) +
+        guides(color = "none", fill ="none")
+      
+      if (mark_sig) {
+        p_selection_freq_circular <- p_selection_freq_circular +
+          scale_color_manual(
+            values = c("FALSE" = "#E69F00", "TRUE" = "#56B4E9"),
+            guide = "none"
+          )
+      } else {
+        p_selection_freq_circular <- p_selection_freq_circular +
+          scale_color_manual(
+            values = c("FALSE" = "#E69F00", "TRUE" = "#E69F00"),
+            guide = "none"
+          )
+      }
+      
+      if (!is.na(freq_threshold) && show_varfreq_limit) {
+        p_selection_freq_circular <- p_selection_freq_circular +
+          geom_hline(yintercept = freq_threshold, linetype = "dashed", color = "salmon")
+      }
+      
+      
+    }
+    
     # Return results for this data regime
     return(list(
       importance_data_long = all_importance_long,
       p_importance = p_importance,
       p_selection_freq2 = p_selection_freq2,
       p_selection_freq = p_selection_freq,
+      p_selection_freq_circular = p_selection_freq_circular,
       feature_importance = feature_importance
     ))
   })
-
+  
   # Name the results by data regime
   names(results_by_regime) <- DataSetSizes
-
+  
   return(results_by_regime)
 }

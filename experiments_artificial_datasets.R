@@ -11,7 +11,7 @@ setwd("/home/joern/Aktuell/GenerativeESOM/08AnalyseProgramme/R/genESOMerrorSigna
 
 # Source helper scripts
 source("generate_synthetic_data.R")
-source("analyze_variable_importance.R")
+source("analyze_variable_importance2.R")
 source("generate_artifical_datasets.R")
 
 # Load required libraries
@@ -87,7 +87,7 @@ asc_Validation <- ascending_significance_data[
 # --- Feature Importance Analysis ---------------------------------------------
 DataSetSizes <- c("original", "engineered_0", "augmented_1_engineered",
                   "augmented_5_engineered", "augmented_50_engineered")
-radius_gen_asc <- 3.5
+radius_gen_asc <- 3.5  #From separate asessments
 results_varimp_asc <- analyze_variable_importance(
   data = ascending_significance_data,
   class_name = "Target",
@@ -171,7 +171,7 @@ noeff_Validation <- no_effect_data[
 
 # --- Feature Importance Analysis ---------------------------------------------
 DataSetSizes <- c("original", "engineered_0", "augmented_1_engineered", "augmented_5_engineered")
-radius_gen_noeff <- 6.6
+radius_gen_noeff <- 6.6 #From separate asessments
 results_varimp_noeff <- analyze_variable_importance(
   data = no_effect_data,
   class_name = "Target",
@@ -179,7 +179,9 @@ results_varimp_noeff <- analyze_variable_importance(
   DataSetSizes = DataSetSizes,
   density_radius = radius_gen_noeff,
   show_varfreq_limit = TRUE,
-  show_varimp_limit = TRUE
+  show_varimp_limit = TRUE, 
+  mark_sig = FALSE,
+  sort_circular = TRUE
 )
 
 # --- Plot Selection Frequency ------------------------------------------------
@@ -195,3 +197,44 @@ plot_noeff_selfreq <- cowplot::plot_grid(
   theme(plot.tag.position = c(0.5, 1), plot.tag = element_text(size = 14, face = "bold", vjust = 0, margin = margin(b = -10)))
 print(plot_noeff_selfreq)
 ggsave("plot_no_effect_data_selection_freq.svg", plot_noeff_selfreq, width = 22, height = 10, limitsize = FALSE)
+
+# --- Plot Selection Frequency (circular) -------------------------------------
+
+# Create the barplot panel (A)
+panel_A <- cowplot::plot_grid(
+  barplot_t_tests_p_no_effect,
+  labels = "A"
+)
+
+# Create the 2x2 grid for circular selection frequency plots (B-E)
+panel_B_to_E <- cowplot::plot_grid(
+  results_varimp_noeff$original$p_selection_freq_circular + labs(title = "Original"),
+  results_varimp_noeff$engineered_0$p_selection_freq_circular + labs(title = "Engineered 0"),
+  results_varimp_noeff$augmented_1_engineered$p_selection_freq_circular + labs(title = "Augmented 1, engineered"),
+  results_varimp_noeff$augmented_5_engineered$p_selection_freq_circular + labs(title = "Augmented 5, engineered"),
+  labels = LETTERS[2:5], # B, C, D, E
+  nrow = 2,
+  align = "v",
+  axis = "lr"
+)
+
+# Combine A and B-E panels into the final layout
+plot_noeff_selfreq_circular <- cowplot::plot_grid(
+  panel_A,
+  panel_B_to_E,
+  nrow = 1,
+  align = "h",
+  rel_widths = c(1, 3)
+) +
+  patchwork::plot_annotation(
+    title = "Variable selection frequency",
+    subtitle = "Dataset: no_effect_data"
+  ) &
+  theme(
+    plot.tag.position = c(0.5, 1),
+    plot.tag = element_text(size = 14, face = "bold", vjust = 0, margin = margin(b = -10))
+  )
+
+# Print and save the figure
+print(plot_noeff_selfreq_circular)
+ggsave("plot_no_effect_data_selection_freq_circular.svg", plot_noeff_selfreq_circular, width = 14, height = 10, limitsize = FALSE)
