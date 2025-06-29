@@ -11,7 +11,7 @@ setwd("/home/joern/Aktuell/GenerativeESOM/08AnalyseProgramme/R/genESOMerrorSigna
 
 # Source helper scripts
 source("generate_synthetic_data.R")
-source("analyze_variable_importance2.R")
+source("analyze_variable_importance.R")
 source("generate_artifical_datasets.R")
 
 # Load required libraries
@@ -87,7 +87,7 @@ asc_Validation <- ascending_significance_data[
 # --- Feature Importance Analysis ---------------------------------------------
 DataSetSizes <- c("original", "engineered_0", "augmented_1_engineered",
                   "augmented_5_engineered", "augmented_50_engineered")
-radius_gen_asc <- 3.5  #From separate asessments
+radius_gen_asc <- 3.5  #From separate assessments
 results_varimp_asc <- analyze_variable_importance(
   data = ascending_significance_data,
   class_name = "Target",
@@ -105,7 +105,7 @@ plot_asc_varimp <- cowplot::plot_grid(
   labels = "AUTO", nrow = 1, align = "h", axis = "tb", rel_widths = c(1, 2)
 ) +
   plot_annotation(title = "Variable importance", subtitle = "Dataset: ascending_significance_data") &
-  theme(plot.tag.position = c(0.5, 1), plot.tag = element_text(size = 14, face = "bold", vjust = 0, margin = margin(b = -10)))
+  theme(plot.tag.position = c(0.5, 1), plot.tag = element_text(size = 14, face = "bold", vjust = 0))
 print(plot_asc_varimp)
 ggsave("plot_ascending_significance_data_var_importance.svg", plot_asc_varimp, width = 20, height = 8, limitsize = FALSE)
 
@@ -118,8 +118,8 @@ plot_asc_selfreq <- cowplot::plot_grid(
   results_varimp_asc$augmented_50_engineered$p_selection_freq + labs(title = "Augmented 50, engineered"),
   labels = "AUTO", nrow = 1, align = "h", axis = "tb"
 ) +
-  plot_annotation(title = "Variable selection frequency", subtitle = "Dataset: ascending_significance_data") &
-  theme(plot.tag.position = c(0.5, 1), plot.tag = element_text(size = 14, face = "bold", vjust = 0, margin = margin(b = -10)))
+  patchwork::plot_annotation(title = "Variable selection frequency", subtitle = "Dataset: ascending_significance_data") &
+  theme(plot.tag.position = c(0.5, 1), plot.tag = element_text(size = 14, face = "bold", vjust = 0))
 print(plot_asc_selfreq)
 ggsave("plot_ascending_significance_data_selection_freq.svg", plot_asc_selfreq, width = 22, height = 10, limitsize = FALSE)
 
@@ -171,7 +171,7 @@ noeff_Validation <- no_effect_data[
 
 # --- Feature Importance Analysis ---------------------------------------------
 DataSetSizes <- c("original", "engineered_0", "augmented_1_engineered", "augmented_5_engineered")
-radius_gen_noeff <- 6.6 #From separate asessments
+radius_gen_noeff <- 6.6 #From separate assessments
 results_varimp_noeff <- analyze_variable_importance(
   data = no_effect_data,
   class_name = "Target",
@@ -194,7 +194,7 @@ plot_noeff_selfreq <- cowplot::plot_grid(
   labels = "AUTO", nrow = 1, align = "h", axis = "tb"
 ) +
   plot_annotation(title = "Variable selection frequency", subtitle = "Dataset: no_effect_data") &
-  theme(plot.tag.position = c(0.5, 1), plot.tag = element_text(size = 14, face = "bold", vjust = 0, margin = margin(b = -10)))
+  theme(plot.tag.position = c(0.5, 1), plot.tag = element_text(size = 14, face = "bold", vjust = 0))
 print(plot_noeff_selfreq)
 ggsave("plot_no_effect_data_selection_freq.svg", plot_noeff_selfreq, width = 22, height = 10, limitsize = FALSE)
 
