@@ -23,8 +23,8 @@ library(cowplot)
 library(patchwork)
 
 # --- Load and Scale Artificial Datasets --------------------------------------
-ascending_significance_data <- read.csv("ascending_significance_test_data.csv")
-no_effect_data <- read.csv("no_effect_test_data.csv")
+ascending_significance_data <- read.csv("ascending_significance_data.csv")
+no_effect_data <- read.csv("no_effect_data.csv")
 
 # Scale features (excluding target column)
 ascending_significance_data[,-1] <- apply(ascending_significance_data[,-1], 2, scale)

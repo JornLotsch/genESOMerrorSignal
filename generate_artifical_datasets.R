@@ -115,7 +115,7 @@ evaluate_dataset(ascending_significance_data, "ascending significance Dataset")
 evaluate_dataset(no_effect_data, "No Effect Dataset")
 
 # Save datasets
-write.csv(ascending_significance_data, "ascending_significance_test_data.csv", row.names = FALSE)
-write.csv(no_effect_data, "no_effect_test_data.csv", row.names = FALSE)
+write.csv(ascending_significance_data, "ascending_significance_data.csv", row.names = FALSE)
+write.csv(no_effect_data, "no_effect_data.csv", row.names = FALSE)
 
 cat("\nTest data generation complete!\n")

@@ -5,7 +5,7 @@
 .Rhistory
 *.code-workspace
 main_analysis.R
-*.csv
+#*.csv
 *.svg
 *.png
 .idea
@@ -14,3 +14,10 @@ results
 Test_Boruta.R
 Test1.R
 Test2.R
+test*
+Test*
+df_analysis.csv
+ascending_significance_test_data.csv
+ascending_significance_data.csv
+no_effect_test_data.csv
+no_effect_data.csv
