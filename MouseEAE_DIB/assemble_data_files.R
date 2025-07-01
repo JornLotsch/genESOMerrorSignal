@@ -86,3 +86,10 @@ ggsave(
   plot_lipidomics,
   width = 14, height = 14, limitsize = FALSE
 )
+
+# --- Data set sizes  -------
+dim(lipid_raw)
+dim(lipid_imputed)
+dim(metadata)
+
+table(metadata$GROUP)
