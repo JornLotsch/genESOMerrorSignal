@@ -1,5 +1,6 @@
 
 *.Rproj
+*.RData
 .Rproj.user
 .Rhistory
 *.code-workspace
