@@ -24,19 +24,20 @@ library(effectsize)
 library(scales)
 
 # --- Load and Scale Mouse Lipidomics Dataset ---------------------------------
-pfad_o <- "/home/joern/Aktuell/GenerativeESOM/"
-pfad_r <- "08AnalyseProgramme/R/"
-mouse_lipidomics_data <- read.csv(
-#  paste0(pfad_o, pfad_r, "Mouse_lipids_transformed_imputed_6perGroup.csv"), # For other project
-  paste0(pfad_o, pfad_r, "Mouse_lipids_transformed_imputed_Groups.csv"),
+path_data <- "/home/joern/Aktuell/GenerativeESOM/08AnalyseProgramme/R/genESOMerrorSignal/MouseEAE_DIB"
+
+mouse_lipidomics_data_all <- read.csv(
+  paste0(path_data, "mouse_lipidomics_data_transformed_imputed.csv"),
   row.names = 1
 )
-names(mouse_lipidomics_data)[1] <- "Target"
+mouse_lipidomics_metadata <- read.csv(  paste0(path_data, "mouse_lipidomics_metadata.csv"),
+
+mouse_lipidomics_data <- cbind.data.frame(Target = mouse_lipidomics_metadata$GROUP, mouse_lipidomics_data_all)
 
 # Scale features (excluding target column)
 mouse_lipidomics_data[,-1] <- apply(mouse_lipidomics_data[,-1], 2, scale)
 
-# --- Split Dataset: Training/Test/Validation ---------------------------------
+# --- Split Dataset: Training/Test/Validation (Not cuurently used) ---------------------------------
 max_cores <- NULL
 nProc <- min(parallel::detectCores() - 1, max_cores)
 seed <- 42

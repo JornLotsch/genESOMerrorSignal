@@ -1,6 +1,6 @@
 # --- Setup: Define file paths and load libraries --------------------------------
 
-setwd("/home/joern/Aktuell/GenerativeESOM/MouseEAE_DIB")
+setwd("/home/joern/Aktuell/GenerativeESOM/08AnalyseProgramme/R/genESOMerrorSignal/MouseEAE_DIB")
 
 # Define commonly used file paths
 base_path <- "/home/joern/Aktuell/GenerativeESOM/"
@@ -9,6 +9,8 @@ data_path <- "09Originale/"
 
 # Load required packages
 library(readxl)
+library(ggplot2)
+library(ggthemes)
 
 # --- Data Import: Read raw and processed data -----------------------------------
 
@@ -59,24 +61,23 @@ lipid_long <- melt(
 
 # --- Visualization: Violin plots of lipidomics data by group and variable -------
 
-library(ggplot2)
-library(ggthemes)
-
-plot_lipidomics <- ggplot(lipid_long, aes(x = variable, y = value, color = GROUP)) +
-  geom_violin(alpha = 0.7) +
+plot_lipidomics <- ggplot(lipid_long, aes(x = variable, y = value, color = GROUP, fill = GROUP)) +
+  geom_violin(alpha = 0.2) +
   geom_point(position = position_dodge(width = 0.9), size = 1.5) +
   facet_wrap(. ~ variable, scales = "free") +
   theme_light() +
   ggthemes::scale_color_colorblind() +
+  ggthemes::scale_fill_colorblind() +
   theme(
-    legend.position = c(0.93, 0.03),           # Place legend inside plot area
+    legend.position = c(0.93, 0.03),          
     legend.justification = c("right", "bottom"),
     legend.direction = "horizontal",
-    strip.background = element_rect(fill = "cornsilk"), # Facet label background
-    strip.text = element_text(color = "black"),         # Facet label text color
-    axis.text.x = element_blank(),                      # Remove redundant x labels
-    axis.ticks.x = element_blank()                      # Remove x axis ticks
-  )
+    strip.background = element_rect(fill = "cornsilk"),
+    strip.text = element_text(color = "black"),      
+    axis.text.x = element_blank(),                   
+    axis.ticks.x = element_blank()  
+  ) +
+  labs(title = "Lipidomics data per treatment group", color = "GROUP", fill = "GROUP")
 
 print(plot_lipidomics)
 
@@ -87,9 +88,10 @@ ggsave(
   width = 14, height = 14, limitsize = FALSE
 )
 
-# --- Data set sizes  -------
+# --- Data set sizes and some stats -------
 dim(lipid_raw)
 dim(lipid_imputed)
 dim(metadata)
 
 table(metadata$GROUP)
+sum(is.na(lipid_raw[,-1]))
