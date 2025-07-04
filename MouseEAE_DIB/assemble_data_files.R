@@ -36,8 +36,10 @@ names(lipid_imputed)[1]      <- "ID"
 names(behavior_lipid_data)[1] <- "ID"
 
 # Select relevant metadata columns for downstream analysis
-metadata_cols <- c("ID", "DRUG", "EAE", "GROUP", "AUC", "W0", "W07", "W14", "W17", "W24")
+metadata_cols <- c("ID", "DRUG", "EAE", "GROUP")
 metadata <- subset(behavior_lipid_data, select = metadata_cols)
+metadata$DRUG <- metadata$DRUG - 1
+metadata$DRUG[metadata$DRUG < 0] <- 0
 
 # Set row names to ID for easier subsetting
 rownames(lipid_raw)     <- lipid_raw$ID
@@ -95,3 +97,5 @@ dim(metadata)
 
 table(metadata$GROUP)
 sum(is.na(lipid_raw[,-1]))
+
+View(metadata)
