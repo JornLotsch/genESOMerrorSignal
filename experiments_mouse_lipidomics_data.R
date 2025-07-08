@@ -24,13 +24,14 @@ library(effectsize)
 library(scales)
 
 # --- Load and Scale Mouse Lipidomics Dataset ---------------------------------
-path_data <- "/home/joern/Aktuell/GenerativeESOM/08AnalyseProgramme/R/genESOMerrorSignal/MouseEAE_DIB"
+path_data <- "/home/joern/Aktuell/GenerativeESOM/08AnalyseProgramme/R/genESOMerrorSignal/MouseEAE_DIB/"
 
 mouse_lipidomics_data_all <- read.csv(
   paste0(path_data, "mouse_lipidomics_data_transformed_imputed.csv"),
   row.names = 1
 )
-mouse_lipidomics_metadata <- read.csv(  paste0(path_data, "mouse_lipidomics_metadata.csv"),
+
+mouse_lipidomics_metadata <- read.csv(  paste0(path_data, "mouse_lipidomics_metadata.csv"))
 
 mouse_lipidomics_data <- cbind.data.frame(Target = mouse_lipidomics_metadata$GROUP, mouse_lipidomics_data_all)
 

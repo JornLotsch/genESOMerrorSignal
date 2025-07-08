@@ -75,42 +75,6 @@ tryCatch({
 })
 setwd("/home/joern/.Datenplatte/Joerns Dateien/Aktuell/GenerativeESOM/08AnalyseProgramme/R/genESOMerrorSignal")
 
-#' Configuration settings
-#' @section File paths:
-input_file <- "test.csv"                # Input data file
-class_name <- "Species"                 # Name of classes column
-output_file <- "test_processed.csv"     # Output processed data file
-output_file_backtransformed <- "test_processed_original_scale.csv"  # Back-transformed data
-lambda_file <- "test_BoxCox_lambdas.csv"             # File to save BoxCox lambda values
-heatmap_file <- "test_Processed_Data_Heatmap.svg"    # Output heatmap file
-
-#' @section Processing options:
-# Data exploration options
-enable_plots <- TRUE                     # Whether to create and display plots
-enable_distribution_exploration <- TRUE  # Whether to explore data distributions
-enable_verbose <- TRUE                   # Whether to print detailed messages
-
-# Transformation options
-enable_transformation <- TRUE           # Whether to transform data
-transformation_method <- "none"         # "auto", "none", "log10", "sqrt", "reciprocal", "boxcox", "ABCtrans_BC"
-
-# Outlier detection options
-enable_outlier_removal <- TRUE          # Whether to detect and remove outliers
-outlier_method <- "grubbs"              # Method for outlier detection: "grubbs" or "boxplot"
-outlier_p_threshold <- 1E-5             # P-value threshold for Grubbs test
-boxplot_coef <- 1.5                     # IQR multiplier for boxplot method
-max_outlier_rounds <- 100               # Maximum rounds of outlier detection
-
-# Missing value handling
-enable_imputation <- TRUE               # Whether to impute missing values
-enable_case_removal <- TRUE             # Whether to remove cases with too many outliers
-case_outlier_limit <- 0.5               # Maximum proportion of missing values allowed per case
-
-#' Set up parallel processing
-#' @param n_cores Number of CPU cores to use (all but one)
-#' @param random_seed Random seed for reproducibility
-n_cores <- parallel::detectCores() - 1
-random_seed <- 42
 
 #' Helper function for verbose output
 #' @param msg Message to print
@@ -1146,256 +1110,293 @@ create_heatmap <- function(data, file_path = NULL, class_column = NULL, scale_da
 #' ============================
 #' Main script execution
 #' ============================
-
-# Check if input file exists
-if (!file.exists(input_file)) {
-  stop("Input file not found: ", input_file)
-}
-
-# Read data
-verbose("Reading data from %s...", input_file)
-raw_data <- tryCatch(
-  read.csv(input_file, row.names = 1),
-  error = function(e) stop("Error reading input file: ", e$message)
-)
-
-verbose("Data dimensions: %d rows by %d columns",
-        dim(raw_data)[1], dim(raw_data)[2])
-
-# Extract class variable if it exists
-class_column <- NULL
-if (class_name %in% colnames(raw_data)) {
-  verbose("Found '%s' column in the data. Extracting as class variable...", class_name)
-  class_column <- raw_data[[class_name]]
-  raw_data <- raw_data[, !colnames(raw_data) %in% class_name, drop = FALSE]
-  verbose("After removing class column: %d rows by %d columns",
-          dim(raw_data)[1], dim(raw_data)[2])
-}
-
-# Store original data for comparison
-original_data <- raw_data
-
-# Explore data distribution if enabled
-if (enable_distribution_exploration) {
-  verbose("Exploring data distributions...")
-  transformation_methods <- c("none", "log10", "sqrt", "reciprocal", "boxcox")
-  distribution_results <- explore_distribution(
-    data = raw_data,
-    classes = class_column,
-    transformation_methods = transformation_methods,
-    plot_results = enable_plots
-  )
-
-  # Print summary of best transformations
-  best_transforms <- distribution_results[distribution_results$Best == "*", ]
-  verbose("Best transformations by variable:")
-  print(best_transforms[, c("Variable", "Transformation", "AD_P_Value")])
-}
-
-# Transform data if enabled
-transformed_data <- raw_data
-lambdas <- NULL  # Initialize lambdas for potential Box-Cox transformations
-
-if (enable_transformation) {
-  verbose("Evaluating normality of original data...")
-  original_normality <- evaluate_normality(raw_data)
-
-  # Apply transformations based on the specified method
-  if (transformation_method == "auto") {
-    verbose("Finding and applying optimal transformations for each variable...")
-    # Apply optimal transformations
-    transformed_data <- apply_best_tukey_transformation(raw_data)
-
-    # Extract transformation information
-    transformations <- attr(transformed_data, "transformations")
-    transformation_names <- attr(transformed_data, "transformation_names")
-    transformation_summary <- attr(transformed_data, "transformation_summary")
-
-    # Print transformation summary
-    verbose("Transformation summary:")
-    print(transformation_summary)
-
-    # Evaluate normality after transformation
-    verbose("Evaluating normality after transformation...")
-    transformed_normality <- evaluate_normality(transformed_data)
-
-    # Compare normality before and after
-    if (enable_plots) {
-      create_normality_comparison_plot(original_normality, transformed_normality)
-    }
-
-  } else {
-    # Apply a single transformation to all variables
-    verbose("Applying %s transformation to all variables...", transformation_method)
-    transformed_data <- apply_single_transformation(raw_data, transformation_method, class_column)
-
-    # Extract lambdas if Box-Cox transformation was used
-    if (transformation_method %in% c("boxcox", "ABCtrans_BC")) {
-      lambdas <- attr(transformed_data, "lambdas")
-      if (!is.null(lambdas)) {
-        # Write lambdas to file
-        lambda_df <- data.frame(
-          Variable = names(lambdas),
-          Lambda = lambdas
-        )
-        write.csv(lambda_df, lambda_file, row.names = FALSE)
-        verbose("Box-Cox lambdas saved to %s", lambda_file)
-      }
-    }
-
-    # Evaluate normality after transformation
-    verbose("Evaluating normality after transformation...")
-    transformed_normality <- evaluate_normality(transformed_data)
-
-    # Compare normality before and after
-    if (enable_plots) {
-      create_normality_comparison_plot(original_normality, transformed_normality)
-    }
-  }
-}
-
-# Remove outliers if enabled
-outlier_removed_data <- transformed_data
-
-if (enable_outlier_removal) {
-  verbose("Detecting and removing outliers using %s method...", outlier_method)
-
-  if (outlier_method == "grubbs") {
-    outlier_removed_data <- remove_outliers_grubbs(
-      transformed_data,
-      p_threshold = outlier_p_threshold,
-      max_rounds = max_outlier_rounds,
-      random_seed = random_seed
-    )
-  } else if (outlier_method == "boxplot") {
-    outlier_removed_data <- remove_outliers_boxplot(
-      transformed_data,
-      coef = boxplot_coef
-    )
-  } else {
-    warning("Unknown outlier method: ", outlier_method, ". Skipping outlier removal.")
-  }
-
-  # Print outlier removal summary
-  if (attr(outlier_removed_data, "method") %in% c("grubbs", "boxplot")) {
-    outliers_by_variable <- attr(outlier_removed_data, "outliers_by_variable")
-    outliers_removed <- attr(outlier_removed_data, "outliers_removed")
-
-    # Sort variables by number of outliers
-    sorted_idx <- order(outliers_by_variable, decreasing = TRUE)
-    top_outlier_vars <- head(names(outliers_by_variable)[sorted_idx], 10)
-    top_outlier_counts <- head(outliers_by_variable[sorted_idx], 10)
-
-    verbose("Top variables with outliers:")
-    for (i in 1:length(top_outlier_vars)) {
-      if (top_outlier_counts[i] > 0) {
-        verbose("  %s: %d outliers", top_outlier_vars[i], top_outlier_counts[i])
-      }
-    }
-
-    # Update class_column to match the removed rows
-    if (!is.null(class_column) && outliers_removed > 0) {
-      # Get the rows that were kept
-      kept_rows <- attr(outlier_removed_data, "kept_rows")
-      if (!is.null(kept_rows)) {
-        class_column <- class_column[kept_rows]
-        verbose("Updated class column to match outlier removal: %d entries", length(class_column))
-      }
-    }
-  }
-
-  # Remove cases with too many missing values if enabled
-  if (enable_case_removal) {
-    outlier_removed_data <- remove_high_missing_cases(
-      outlier_removed_data,
-      threshold = case_outlier_limit
-    )
-
-    # Update class_column to match the removed cases
-    if (!is.null(class_column)) {
-      removed_cases <- attr(outlier_removed_data, "removed_cases")
-      if (!is.null(removed_cases) && length(removed_cases) > 0) {
-        # Keep only cases that weren't removed
-        kept_cases <- setdiff(1:length(class_column), removed_cases)
-        class_column <- class_column[kept_cases]
-        verbose("Updated class column after case removal: %d entries", length(class_column))
-      }
-    }
-  }
-}
-
-# Impute missing values if enabled
-processed_data <- outlier_removed_data
-
-if (enable_imputation) {
-  verbose("Imputing missing values...")
-  processed_data <- impute_missing_values(
-    outlier_removed_data,
-    n_cores = n_cores,
-    random_seed = random_seed
-  )
-}
-
-# Reinsert class column if it exists
-if (!is.null(class_column)) {
-  verbose("Reinserting '%s' column into processed data...", class_name)
-  # Verify that dimensions match
-  if (nrow(processed_data) != length(class_column)) {
-    warning("Dimensions mismatch between processed data (%d rows) and class column (%d entries). Class column not added.",
-            nrow(processed_data), length(class_column))
-  } else {
-    processed_data[[class_name]] <- class_column
-    verbose("Class column '%s' successfully added to processed data", class_name)
-  }
-}
-
-# Save processed data
-verbose("Saving processed data to %s...", output_file)
-write.csv(processed_data, output_file)
-
-# Back-transform data to original scale if needed
-if (enable_transformation && transformation_method != "none") {
-  verbose("Back-transforming data to original scale...")
-
-  if (transformation_method == "auto") {
-    # For auto-transformation, we need to back-transform each variable separately
-    back_transformed_data <- processed_data
-    transformations <- attr(transformed_data, "transformations")
-
-    if (!is.null(transformations)) {
-      for (i in 1:ncol(processed_data)) {
-        col_name <- names(processed_data)[i]
-        # Skip the class column if it exists
-        if (col_name == class_name) next
-        lambda <- transformations[i]
-        back_transformed_data[, i] <- back_transform(processed_data[, i], lambda)
-      }
-    }
-  } else {
-    # For single transformation method, use the appropriate back-transform function
-    # Create a copy of processed_data first
-    back_transformed_data <- processed_data
-
-    # Get columns to transform (all except class column)
-    cols_to_transform <- setdiff(colnames(processed_data), class_name)
-
-    # Apply back-transformation only to the data columns
-    back_transformed_data[, cols_to_transform] <- back_transform_data(
-      processed_data[, cols_to_transform, drop = FALSE],
-      method = transformation_method,
-      lambdas = lambdas
-    )
-  }
-
-  # Save back-transformed data
-  verbose("Saving back-transformed data to %s...", output_file_backtransformed)
-  write.csv(back_transformed_data, output_file_backtransformed)
-}
-
-# Create heatmap of processed data if enabled
-if (enable_plots) {
-  verbose("Creating heatmap of processed data...")
-  create_heatmap(processed_data, heatmap_file, class_column = class_name, scale_data = FALSE)
-}
-
-verbose("Data preparation and imputation complete!")
+#' #' Configuration settings
+#' #' @section File paths:
+#' input_file <- "test.csv"                # Input data file
+#' class_name <- "Species"                 # Name of classes column
+#' output_file <- "test_processed.csv"     # Output processed data file
+#' output_file_backtransformed <- "test_processed_original_scale.csv"  # Back-transformed data
+#' lambda_file <- "test_BoxCox_lambdas.csv"             # File to save BoxCox lambda values
+#' heatmap_file <- "test_Processed_Data_Heatmap.svg"    # Output heatmap file
+#' 
+#' #' @section Processing options:
+#' # Data exploration options
+#' enable_plots <- TRUE                     # Whether to create and display plots
+#' enable_distribution_exploration <- TRUE  # Whether to explore data distributions
+#' enable_verbose <- TRUE                   # Whether to print detailed messages
+#' 
+#' # Transformation options
+#' enable_transformation <- TRUE           # Whether to transform data
+#' transformation_method <- "none"         # "auto", "none", "log10", "sqrt", "reciprocal", "boxcox", "ABCtrans_BC"
+#' 
+#' # Outlier detection options
+#' enable_outlier_removal <- TRUE          # Whether to detect and remove outliers
+#' outlier_method <- "grubbs"              # Method for outlier detection: "grubbs" or "boxplot"
+#' outlier_p_threshold <- 1E-5             # P-value threshold for Grubbs test
+#' boxplot_coef <- 1.5                     # IQR multiplier for boxplot method
+#' max_outlier_rounds <- 100               # Maximum rounds of outlier detection
+#' 
+#' # Missing value handling
+#' enable_imputation <- TRUE               # Whether to impute missing values
+#' enable_case_removal <- TRUE             # Whether to remove cases with too many outliers
+#' case_outlier_limit <- 0.5               # Maximum proportion of missing values allowed per case
+#' 
+#' #' Set up parallel processing
+#' #' @param n_cores Number of CPU cores to use (all but one)
+#' #' @param random_seed Random seed for reproducibility
+#' n_cores <- parallel::detectCores() - 1
+#' random_seed <- 42
+#' 
+#' 
+#' # Check if input file exists
+#' if (!file.exists(input_file)) {
+#'   stop("Input file not found: ", input_file)
+#' }
+#' 
+#' # Read data
+#' verbose("Reading data from %s...", input_file)
+#' raw_data <- tryCatch(
+#'   read.csv(input_file, row.names = 1),
+#'   error = function(e) stop("Error reading input file: ", e$message)
+#' )
+#' 
+#' verbose("Data dimensions: %d rows by %d columns",
+#'         dim(raw_data)[1], dim(raw_data)[2])
+#' 
+#' # Extract class variable if it exists
+#' class_column <- NULL
+#' if (class_name %in% colnames(raw_data)) {
+#'   verbose("Found '%s' column in the data. Extracting as class variable...", class_name)
+#'   class_column <- raw_data[[class_name]]
+#'   raw_data <- raw_data[, !colnames(raw_data) %in% class_name, drop = FALSE]
+#'   verbose("After removing class column: %d rows by %d columns",
+#'           dim(raw_data)[1], dim(raw_data)[2])
+#' }
+#' 
+#' # Store original data for comparison
+#' original_data <- raw_data
+#' 
+#' # Explore data distribution if enabled
+#' if (enable_distribution_exploration) {
+#'   verbose("Exploring data distributions...")
+#'   transformation_methods <- c("none", "log10", "sqrt", "reciprocal", "boxcox")
+#'   distribution_results <- explore_distribution(
+#'     data = raw_data,
+#'     classes = class_column,
+#'     transformation_methods = transformation_methods,
+#'     plot_results = enable_plots
+#'   )
+#' 
+#'   # Print summary of best transformations
+#'   best_transforms <- distribution_results[distribution_results$Best == "*", ]
+#'   verbose("Best transformations by variable:")
+#'   print(best_transforms[, c("Variable", "Transformation", "AD_P_Value")])
+#' }
+#' 
+#' # Transform data if enabled
+#' transformed_data <- raw_data
+#' lambdas <- NULL  # Initialize lambdas for potential Box-Cox transformations
+#' 
+#' if (enable_transformation) {
+#'   verbose("Evaluating normality of original data...")
+#'   original_normality <- evaluate_normality(raw_data)
+#' 
+#'   # Apply transformations based on the specified method
+#'   if (transformation_method == "auto") {
+#'     verbose("Finding and applying optimal transformations for each variable...")
+#'     # Apply optimal transformations
+#'     transformed_data <- apply_best_tukey_transformation(raw_data)
+#' 
+#'     # Extract transformation information
+#'     transformations <- attr(transformed_data, "transformations")
+#'     transformation_names <- attr(transformed_data, "transformation_names")
+#'     transformation_summary <- attr(transformed_data, "transformation_summary")
+#' 
+#'     # Print transformation summary
+#'     verbose("Transformation summary:")
+#'     print(transformation_summary)
+#' 
+#'     # Evaluate normality after transformation
+#'     verbose("Evaluating normality after transformation...")
+#'     transformed_normality <- evaluate_normality(transformed_data)
+#' 
+#'     # Compare normality before and after
+#'     if (enable_plots) {
+#'       create_normality_comparison_plot(original_normality, transformed_normality)
+#'     }
+#' 
+#'   } else {
+#'     # Apply a single transformation to all variables
+#'     verbose("Applying %s transformation to all variables...", transformation_method)
+#'     transformed_data <- apply_single_transformation(raw_data, transformation_method, class_column)
+#' 
+#'     # Extract lambdas if Box-Cox transformation was used
+#'     if (transformation_method %in% c("boxcox", "ABCtrans_BC")) {
+#'       lambdas <- attr(transformed_data, "lambdas")
+#'       if (!is.null(lambdas)) {
+#'         # Write lambdas to file
+#'         lambda_df <- data.frame(
+#'           Variable = names(lambdas),
+#'           Lambda = lambdas
+#'         )
+#'         write.csv(lambda_df, lambda_file, row.names = FALSE)
+#'         verbose("Box-Cox lambdas saved to %s", lambda_file)
+#'       }
+#'     }
+#' 
+#'     # Evaluate normality after transformation
+#'     verbose("Evaluating normality after transformation...")
+#'     transformed_normality <- evaluate_normality(transformed_data)
+#' 
+#'     # Compare normality before and after
+#'     if (enable_plots) {
+#'       create_normality_comparison_plot(original_normality, transformed_normality)
+#'     }
+#'   }
+#' }
+#' 
+#' # Remove outliers if enabled
+#' outlier_removed_data <- transformed_data
+#' 
+#' if (enable_outlier_removal) {
+#'   verbose("Detecting and removing outliers using %s method...", outlier_method)
+#' 
+#'   if (outlier_method == "grubbs") {
+#'     outlier_removed_data <- remove_outliers_grubbs(
+#'       transformed_data,
+#'       p_threshold = outlier_p_threshold,
+#'       max_rounds = max_outlier_rounds,
+#'       random_seed = random_seed
+#'     )
+#'   } else if (outlier_method == "boxplot") {
+#'     outlier_removed_data <- remove_outliers_boxplot(
+#'       transformed_data,
+#'       coef = boxplot_coef
+#'     )
+#'   } else {
+#'     warning("Unknown outlier method: ", outlier_method, ". Skipping outlier removal.")
+#'   }
+#' 
+#'   # Print outlier removal summary
+#'   if (attr(outlier_removed_data, "method") %in% c("grubbs", "boxplot")) {
+#'     outliers_by_variable <- attr(outlier_removed_data, "outliers_by_variable")
+#'     outliers_removed <- attr(outlier_removed_data, "outliers_removed")
+#' 
+#'     # Sort variables by number of outliers
+#'     sorted_idx <- order(outliers_by_variable, decreasing = TRUE)
+#'     top_outlier_vars <- head(names(outliers_by_variable)[sorted_idx], 10)
+#'     top_outlier_counts <- head(outliers_by_variable[sorted_idx], 10)
+#' 
+#'     verbose("Top variables with outliers:")
+#'     for (i in 1:length(top_outlier_vars)) {
+#'       if (top_outlier_counts[i] > 0) {
+#'         verbose("  %s: %d outliers", top_outlier_vars[i], top_outlier_counts[i])
+#'       }
+#'     }
+#' 
+#'     # Update class_column to match the removed rows
+#'     if (!is.null(class_column) && outliers_removed > 0) {
+#'       # Get the rows that were kept
+#'       kept_rows <- attr(outlier_removed_data, "kept_rows")
+#'       if (!is.null(kept_rows)) {
+#'         class_column <- class_column[kept_rows]
+#'         verbose("Updated class column to match outlier removal: %d entries", length(class_column))
+#'       }
+#'     }
+#'   }
+#' 
+#'   # Remove cases with too many missing values if enabled
+#'   if (enable_case_removal) {
+#'     outlier_removed_data <- remove_high_missing_cases(
+#'       outlier_removed_data,
+#'       threshold = case_outlier_limit
+#'     )
+#' 
+#'     # Update class_column to match the removed cases
+#'     if (!is.null(class_column)) {
+#'       removed_cases <- attr(outlier_removed_data, "removed_cases")
+#'       if (!is.null(removed_cases) && length(removed_cases) > 0) {
+#'         # Keep only cases that weren't removed
+#'         kept_cases <- setdiff(1:length(class_column), removed_cases)
+#'         class_column <- class_column[kept_cases]
+#'         verbose("Updated class column after case removal: %d entries", length(class_column))
+#'       }
+#'     }
+#'   }
+#' }
+#' 
+#' # Impute missing values if enabled
+#' processed_data <- outlier_removed_data
+#' 
+#' if (enable_imputation) {
+#'   verbose("Imputing missing values...")
+#'   processed_data <- impute_missing_values(
+#'     outlier_removed_data,
+#'     n_cores = n_cores,
+#'     random_seed = random_seed
+#'   )
+#' }
+#' 
+#' # Reinsert class column if it exists
+#' if (!is.null(class_column)) {
+#'   verbose("Reinserting '%s' column into processed data...", class_name)
+#'   # Verify that dimensions match
+#'   if (nrow(processed_data) != length(class_column)) {
+#'     warning("Dimensions mismatch between processed data (%d rows) and class column (%d entries). Class column not added.",
+#'             nrow(processed_data), length(class_column))
+#'   } else {
+#'     processed_data[[class_name]] <- class_column
+#'     verbose("Class column '%s' successfully added to processed data", class_name)
+#'   }
+#' }
+#' 
+#' # Save processed data
+#' verbose("Saving processed data to %s...", output_file)
+#' write.csv(processed_data, output_file)
+#' 
+#' # Back-transform data to original scale if needed
+#' if (enable_transformation && transformation_method != "none") {
+#'   verbose("Back-transforming data to original scale...")
+#' 
+#'   if (transformation_method == "auto") {
+#'     # For auto-transformation, we need to back-transform each variable separately
+#'     back_transformed_data <- processed_data
+#'     transformations <- attr(transformed_data, "transformations")
+#' 
+#'     if (!is.null(transformations)) {
+#'       for (i in 1:ncol(processed_data)) {
+#'         col_name <- names(processed_data)[i]
+#'         # Skip the class column if it exists
+#'         if (col_name == class_name) next
+#'         lambda <- transformations[i]
+#'         back_transformed_data[, i] <- back_transform(processed_data[, i], lambda)
+#'       }
+#'     }
+#'   } else {
+#'     # For single transformation method, use the appropriate back-transform function
+#'     # Create a copy of processed_data first
+#'     back_transformed_data <- processed_data
+#' 
+#'     # Get columns to transform (all except class column)
+#'     cols_to_transform <- setdiff(colnames(processed_data), class_name)
+#' 
+#'     # Apply back-transformation only to the data columns
+#'     back_transformed_data[, cols_to_transform] <- back_transform_data(
+#'       processed_data[, cols_to_transform, drop = FALSE],
+#'       method = transformation_method,
+#'       lambdas = lambdas
+#'     )
+#'   }
+#' 
+#'   # Save back-transformed data
+#'   verbose("Saving back-transformed data to %s...", output_file_backtransformed)
+#'   write.csv(back_transformed_data, output_file_backtransformed)
+#' }
+#' 
+#' # Create heatmap of processed data if enabled
+#' if (enable_plots) {
+#'   verbose("Creating heatmap of processed data...")
+#'   create_heatmap(processed_data, heatmap_file, class_column = class_name, scale_data = FALSE)
+#' }
+#' 
+#' verbose("Data preparation and imputation complete!")
