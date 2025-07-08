@@ -1,36 +1,36 @@
 # Error-controlled generative AI with feature importance analysis
 
-A pipeline implementing built-in error control mechanisms for self-organizing neural network generative AI (genESOM) through dimensionality change detection.
+This is a pipeline that implements built-in error control mechanisms for self-organising neural network generative AI (genESOM), through dimensionality change detection.
 
 ## Overview
 
-This repository provides a comprehensive framework for biomedical data augmentation with automatic error control mechanisms. By leveraging Emergent Self-Organizing Maps (ESOM), the pipeline separates data structure learning from data generation, allowing for controlled dimensionality changes that can be exploited to detect error inflation in synthetic data generation.
+This repository provides a comprehensive framework for biomedical data augmentation with automatic error control mechanisms. Leveraging Emergent Self-Organising Maps (ESOM), the pipeline separates data structure learning from data generation. This allows for controlled dimensionality changes to be exploited to detect error inflation in synthetic data generation.
 
-The key innovation is the injection of a "diagnostic" signal that provides a data-based stopping point for augmentation, preserving the validity of AI-augmented datasets and preventing error inflation - a common problem in many generative AI approaches.
+The key innovation is the injection of a 'diagnostic' signal that provides a data-based stopping point for augmentation, thereby preserving the validity of AI-augmented datasets and preventing error inflation, which is a common problem in many generative AI approaches.
 
 The repository contains relevant R and Python code.
 
-## Core Concept
+## Core concept
 
-Unlike most generative models, genESOM AI separates the learning of data structure from the actual data generation process. This unique approach allows for:
+Unlike most generative models, genESOM AI separates the learning of the data structure from the data generation process itself. This unique approach allows for:
 
 1. Generation of data with altered dimensionality from the training data
 2. Implementation of stopping criteria for data augmentation
 
-## Key Components
+## Key components
 
-### Data Structure Learning
+### Data structure learning
 - **ESOM U-matrix training** to capture the topological structure of data
 - **Density radius calculation** to guide synthetic data generation
 
 <img src="./neighborhood_distances.svg">
 
-### Synthetic Data Generation
+### Synthetic data generation
 - **Density-based augmentation** with configurable generation rates
 - **Diagnostic signal injection** for error inflation detection
 - **Stopping criteria** based on feature importance stability
 
-### Feature Importance Analysis
+### Feature importance analysis
 - **Cross-variant comparison** of feature importance across:
   - Original data
   - Engineered data with permuted features
@@ -56,7 +56,7 @@ Clone this repository and install the required R packages.
 Some additional code is provided in Python. It has been tested so far in Python version 3.11.7 for Linux.
 
 
-## Feature Importance Pipeline Parameters
+## Feature importance pipeline parameters
 
 - `output_dir`: Directory for saving results
 - `output_prefix`: Prefix for output files
@@ -69,7 +69,7 @@ Some additional code is provided in Python. It has been tested so far in Python 
 - `enable_plots`: Whether to generate and display plots
 - `enable_file_output`: Whether to save results to files
 
-## Outputs and Interpretation
+## Outputs and interpretation
 
 The pipeline generates visualizations and data that help detect error inflation:
 
@@ -91,7 +91,7 @@ This approach is particularly valuable for:
 
 ## License
 
-This project is licensed under the GNU General Public License v3.0 (GPL-3.0)
+This project is licensed under the GNU General Public Licence v3.0 (GPL-3.0).
 
 ## Citation
 
