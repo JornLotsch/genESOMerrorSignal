@@ -87,7 +87,7 @@ barplot_mouse_lipidomics_data_significant_vars <- ggplot(
   geom_bar(stat = "identity", color = "#8C5C00", alpha=0.3) +
   geom_vline(xintercept = -log10(0.05), color = "salmon", linetype = "dashed") +
   annotate(
-    "text", x = -log10(0.05), y = df_mouse_lipidomics_data_p_vals$Lipid[1],
+    "text", x = -log10(0.05), y = 1,
     label = "p = 0.05", hjust = -0.1, vjust = 1.5, color = "salmon",
     fontface = "plain", angle = 90
   ) +  
