@@ -96,15 +96,14 @@ slog2Forward <- function(x, m = 2) {
   s <- sign(x)
   switch(ms,
     "0" = {
-      Val <- log1p(absX)
-    },
+    Val <- log1p(absX)
+  },
     "2" = {
-      Val <- log2(absX + 1)
-    },
+    Val <- log2(absX + 1)
+  },
     "10" = {
-      Val <- log10(absX + 1)
-    },
-  {
+    Val <- log10(absX + 1)
+  }, {
     Val <- log((absX + 1), base = m)
   }
   )
@@ -121,16 +120,15 @@ slog2Inverse <- function(sLog, m = 2) {
   s <- sign(sLog)
   switch(ms,
     "0" = {
-      Val <- exp(sLog / s) - 1
-    },
+    Val <- exp(sLog / s) - 1
+  },
     "2" = {
-      Val <- 2^(sLog / s) - 1
-    },
+    Val <- 2 ^ (sLog / s) - 1
+  },
     "10" = {
-      Val <- 10^(sLog / s) - 1
-    },
-  {
-    Val <- m^(sLog / s) - 1
+    Val <- 10 ^ (sLog / s) - 1
+  }, {
+    Val <- m ^ (sLog / s) - 1
   }
   )
   return(Val * s)
@@ -161,13 +159,13 @@ apply_tukey_trans <- function(x, lambda) {
     return(x)
   }
 
-  if (abs(lambda_num - (-2)) < 1e-10) return(1 / (x^2))
+  if (abs(lambda_num - (-2)) < 1e-10) return(1 / (x ^ 2))
   if (abs(lambda_num - (-1)) < 1e-10) return(1 / x)
   if (abs(lambda_num - (-0.5)) < 1e-10) return(1 / sqrt(x))
   if (abs(lambda_num - 0) < 1e-10) return(log10(x))
   if (abs(lambda_num - 0.5) < 1e-10) return(sqrt(x))
   if (abs(lambda_num - 1) < 1e-10) return(x)
-  if (abs(lambda_num - 2) < 1e-10) return(x^2)
+  if (abs(lambda_num - 2) < 1e-10) return(x ^ 2)
 
   # Default case: return original data with warning
   warning("Unrecognized lambda value in apply_tukey_trans. Using original data.")
@@ -190,9 +188,9 @@ back_transform <- function(x, lambda) {
 
   if (abs(lambda_num - (-2)) < 1e-10) return(1 / sqrt(1 / x))
   if (abs(lambda_num - (-1)) < 1e-10) return(1 / x)
-  if (abs(lambda_num - (-0.5)) < 1e-10) return(1 / (x^2))
-  if (abs(lambda_num - 0) < 1e-10) return(10^x)
-  if (abs(lambda_num - 0.5) < 1e-10) return(x^2)
+  if (abs(lambda_num - (-0.5)) < 1e-10) return(1 / (x ^ 2))
+  if (abs(lambda_num - 0) < 1e-10) return(10 ^ x)
+  if (abs(lambda_num - 0.5) < 1e-10) return(x ^ 2)
   if (abs(lambda_num - 1) < 1e-10) return(x)
   if (abs(lambda_num - 2) < 1e-10) return(sqrt(x))
 
@@ -222,7 +220,7 @@ doBoxCoxTrans <- function(x, lambda) {
     log(x)
   } else {
     # Standard Box-Cox transformation
-    (x^lambda - 1) / lambda
+    (x ^ lambda - 1) / lambda
   }
 }
 
@@ -237,7 +235,7 @@ back_transform_boxcox <- function(x, lambda) {
     exp(x)
   } else {
     # Back-transform Box-Cox
-    (lambda * x + 1)^(1/lambda)
+    (lambda * x + 1) ^ (1 / lambda)
   }
 }
 
@@ -249,7 +247,7 @@ back_transform_boxcox <- function(x, lambda) {
 #' @return Data frame with all columns transformed using the specified method
 apply_single_transformation <- function(data, method, Cls = NULL) {
   transformed_data <- data
-  lambdas <- NULL  # Initialize lambdas to NULL
+  lambdas <- NULL # Initialize lambdas to NULL
 
   # Check for non-positive values in the entire dataset for log transformations
   if (method %in% c("log", "log2", "log10")) {
@@ -271,7 +269,7 @@ apply_single_transformation <- function(data, method, Cls = NULL) {
     } else {
       # Use ABCstats adaptive Box-Cox transformation
       if (is.null(Cls)) {
-        Cls <- rep(1, nrow(data))  # Default to single class if not provided
+        Cls <- rep(1, nrow(data)) # Default to single class if not provided
       }
 
       # Prepare data for ABCtransform
@@ -322,35 +320,35 @@ apply_single_transformation <- function(data, method, Cls = NULL) {
                                       "slog2" = slog2Forward(col_data, m = 2),
                                       "slog10" = slog2Forward(col_data, m = 10),
                                       "sqrt" = {
-                                        if (any(col_data < 0, na.rm = TRUE)) {
-                                          verbose("Warning: Column %s contains negative values, cannot apply sqrt transformation",
+        if (any(col_data < 0, na.rm = TRUE)) {
+          verbose("Warning: Column %s contains negative values, cannot apply sqrt transformation",
                                                   names(data)[i])
-                                          col_data
-                                        } else {
-                                          sqrt(col_data)
-                                        }
-                                      },
+          col_data
+        } else {
+          sqrt(col_data)
+        }
+      },
                                       "reciprocal" = {
-                                        if (any(col_data == 0, na.rm = TRUE)) {
-                                          verbose("Warning: Column %s contains zero values, cannot apply reciprocal transformation",
+        if (any(col_data == 0, na.rm = TRUE)) {
+          verbose("Warning: Column %s contains zero values, cannot apply reciprocal transformation",
                                                   names(data)[i])
-                                          col_data
-                                        } else {
-                                          1 / col_data
-                                        }
-                                      },
+          col_data
+        } else {
+          1 / col_data
+        }
+      },
                                       "boxcox" = {
-                                        tryCatch({
-                                          lambda <- forecast::BoxCox.lambda(col_data)
-                                          if (is.null(lambdas)) lambdas <- numeric(ncol(data))
-                                          lambdas[i] <- lambda
-                                          forecast::BoxCox(col_data, lambda)
-                                        }, error = function(e) {
-                                          verbose("BoxCox failed for column %s: %s",
+        tryCatch({
+          lambda <- forecast::BoxCox.lambda(col_data)
+          if (is.null(lambdas)) lambdas <- numeric(ncol(data))
+          lambdas[i] <- lambda
+          forecast::BoxCox(col_data, lambda)
+        }, error = function(e) {
+          verbose("BoxCox failed for column %s: %s",
                                                   names(data)[i], e$message)
-                                          col_data  # Return original if BoxCox fails
-                                        })
-                                      },
+          col_data # Return original if BoxCox fails
+        })
+      },
                                       "tukey_-2" = apply_tukey_trans(col_data, "-2"),
                                       "tukey_-1" = apply_tukey_trans(col_data, "-1"),
                                       "tukey_-0.5" = apply_tukey_trans(col_data, "-0.5"),
@@ -358,7 +356,7 @@ apply_single_transformation <- function(data, method, Cls = NULL) {
                                       "tukey_0.5" = apply_tukey_trans(col_data, "0.5"),
                                       "tukey_1" = apply_tukey_trans(col_data, "1"),
                                       "tukey_2" = apply_tukey_trans(col_data, "2"),
-                                      col_data  # Default is no transformation
+                                      col_data # Default is no transformation
       )
     }
 
@@ -406,14 +404,14 @@ back_transform_data <- function(data, method, lambdas = NULL) {
       back_transformed[, i] <- switch(method,
                                       "none" = data[, i],
                                       "log" = exp(data[, i]),
-                                      "log2" = 2^(data[, i]),
-                                      "log10" = 10^(data[, i]),
+                                      "log2" = 2 ^ (data[, i]),
+                                      "log10" = 10 ^ (data[, i]),
                                       "slog" = slog2Inverse(data[, i], m = exp(1)),
                                       "slog2" = slog2Inverse(data[, i], m = 2),
                                       "slog10" = slog2Inverse(data[, i], m = 10),
-                                      "sqrt" = (data[, i])^2,
+                                      "sqrt" = (data[, i]) ^ 2,
                                       "reciprocal" = 1 / (data[, i]),
-                                      data[, i]  # Default is no transformation
+                                      data[, i] # Default is no transformation
       )
     }
   }
@@ -535,18 +533,18 @@ explore_distribution <- function(data, classes = NULL, transformation_methods = 
   # Save original plotting parameters to restore later
   original_par <- par(no.readonly = TRUE)
   on.exit(par(original_par))
-  
+
   if (is.null(variables)) {
     variables <- names(data)
   }
-  
+
   # Sample only max_vars variables if there are too many
   if (length(variables) > max_vars) {
     set.seed(random_seed)
     variables <- sample(variables, max_vars)
     message(sprintf("Too many variables, sampling %d at random for distribution exploration", max_vars))
   }
-  
+
   # Create a data frame to store results
   results <- data.frame(
     Variable = character(),
@@ -556,16 +554,16 @@ explore_distribution <- function(data, classes = NULL, transformation_methods = 
     Best = character(),
     stringsAsFactors = FALSE
   )
-  
+
   # If plotting is enabled, set up the plot layout
   if (plot_results) {
     par(mfrow = c(length(transformation_methods), 3))
   }
-  
+
   # Process each variable
   for (i in seq_along(variables)) {
     variable_data <- subset(data, select = variables[i])[, 1]
-    
+
     # Create a temporary data frame for this variable's results
     var_results <- data.frame(
       Variable = character(),
@@ -575,13 +573,13 @@ explore_distribution <- function(data, classes = NULL, transformation_methods = 
       Best = character(),
       stringsAsFactors = FALSE
     )
-    
+
     for (i1 in seq_along(transformation_methods)) {
       transformation_success <- TRUE
       ad_statistic <- NA
       ad_p_value <- NA
       transformed_data <- NULL
-      
+
       # Apply transformation with error handling
       if (transformation_methods[i1] == "none") {
         transformed_data <- variable_data
@@ -618,7 +616,7 @@ explore_distribution <- function(data, classes = NULL, transformation_methods = 
       } else {
         transformed_data <- variable_data
       }
-      
+
       # Run Anderson-Darling test if transformation was successful
       if (transformation_success && sum(!is.na(transformed_data)) >= 8) {
         ad_test_result <- tryCatch({
@@ -633,7 +631,7 @@ explore_distribution <- function(data, classes = NULL, transformation_methods = 
         ad_statistic <- NA
         ad_p_value <- NA
       }
-      
+
       # Add results to the variable-specific data frame
       var_results <- rbind(var_results, data.frame(
         Variable = variables[i],
@@ -643,7 +641,7 @@ explore_distribution <- function(data, classes = NULL, transformation_methods = 
         Best = "",
         stringsAsFactors = FALSE
       ))
-      
+
       # Robust plotting: always produce 3 plots (or placeholders)
       if (plot_results) {
         if (transformation_success && sum(!is.na(transformed_data)) >= 8) {
@@ -658,7 +656,7 @@ explore_distribution <- function(data, classes = NULL, transformation_methods = 
           }, error = function(e) {
             plot(1, 1, main = "Histogram failed", type = "n")
           })
-          
+
           # Density plot
           tryCatch({
             if (length(unique(na.omit(transformed_data))) > 1) {
@@ -672,7 +670,7 @@ explore_distribution <- function(data, classes = NULL, transformation_methods = 
           }, error = function(e) {
             plot(1, 1, main = "Density estimation failed", type = "n")
           })
-          
+
           # QQ plot
           tryCatch({
             if (sum(!is.na(transformed_data)) >= 3) {
@@ -692,17 +690,17 @@ explore_distribution <- function(data, classes = NULL, transformation_methods = 
         }
       }
     }
-    
+
     # Identify the best transformation (highest p-value) for this variable
     max_p_idx <- which.max(var_results$AD_P_Value)
     if (length(max_p_idx) > 0 && !is.na(var_results$AD_P_Value[max_p_idx])) {
       var_results$Best[max_p_idx] <- "*"
     }
-    
+
     # Add this variable's results to the overall results
     results <- rbind(results, var_results)
   }
-  
+
   # Return the results data frame
   return(results)
 }
@@ -724,7 +722,7 @@ apply_var_wise_best_tukey_transformation <- function(data, best_transforms) {
   # Extract variable names and methods
   vars <- best_transforms$Variable
   methods <- best_transforms$Transformation
-  
+
   # Internal transformation function
   transform_var <- function(x, method) {
     if (method == "none") {
@@ -745,7 +743,7 @@ apply_var_wise_best_tukey_transformation <- function(data, best_transforms) {
       stop("Unknown transformation")
     }
   }
-  
+
   # Subset and transform the selected variables
   transformed_list <- mapply(
     FUN = transform_var,
@@ -753,7 +751,7 @@ apply_var_wise_best_tukey_transformation <- function(data, best_transforms) {
     method = methods,
     SIMPLIFY = FALSE
   )
-  
+
   transformed_data <- as.data.frame(transformed_list)
   names(transformed_data) <- vars
   return(transformed_data)
@@ -892,8 +890,8 @@ remove_outliers_grubbs <- function(data, p_threshold = 1E-5, max_rounds = 100, r
   total_values <- prod(dim(data_for_outlier_removal))
 
   # Initialize tracking variables
-  parameters_with_outliers_high <- "placeholder"  # Placeholder to start the loop
-  parameters_with_outliers_low <- "placeholder"   # Placeholder to start the loop
+  parameters_with_outliers_high <- "placeholder" # Placeholder to start the loop
+  parameters_with_outliers_low <- "placeholder" # Placeholder to start the loop
   elimination_round <- 1
   outliers_by_variable <- numeric(ncol(data))
   names(outliers_by_variable) <- names(data)
@@ -1013,7 +1011,7 @@ remove_high_missing_cases <- function(data, threshold = 0.5) {
           rows_removed, threshold * 100)
 
   # Return filtered data
-  return(data[rows_to_keep, , drop = FALSE])
+  return(data[rows_to_keep,, drop = FALSE])
 }
 
 #' Impute missing values using missForest
@@ -1060,7 +1058,7 @@ impute_missing_values <- function(data, n_cores = 1, random_seed = 42) {
   if (class(imputed_data) == "list" && "ximp" %in% names(imputed_data)) {
     return(imputed_data$ximp)
   } else {
-    return(data)  # Return original if imputation fails
+    return(data) # Return original if imputation fails
   }
 }
 
@@ -1093,7 +1091,7 @@ create_heatmap <- function(data, file_path = NULL, class_column = NULL, scale_da
 
   # If no classes are provided, create a default class vector
   if (is.null(classes)) {
-    classes <- rep(1, nrow(data))  # Default to single class if not provided
+    classes <- rep(1, nrow(data)) # Default to single class if not provided
     verbose("No class information provided. Using single class for all observations.")
   }
 
@@ -1127,7 +1125,7 @@ create_heatmap <- function(data, file_path = NULL, class_column = NULL, scale_da
     heatmap_data,
     name = ifelse(scale_data, "Z-score", "Data"),
     col = colorRampPalette(c("dodgerblue", "white", "chartreuse"))(100),
-    show_row_names = FALSE,  # Changed to FALSE as typically there are many rows
+    show_row_names = FALSE, # Changed to FALSE as typically there are many rows
     show_column_names = TRUE,
     cluster_rows = FALSE,
     cluster_columns = FALSE,

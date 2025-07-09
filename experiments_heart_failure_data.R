@@ -62,7 +62,7 @@ distribution_results <- explore_distribution(
 par(mfrow = c(1, 1))
 
 # Print summary of best transformations
-best_transforms <- distribution_results[distribution_results$Best == "*", ]
+best_transforms <- distribution_results[distribution_results$Best == "*",]
 verbose("Best transformations by variable:")
 print(best_transforms[, c("Variable", "Transformation", "AD_P_Value")])
 
@@ -71,8 +71,8 @@ print(best_transforms[, c("Variable", "Transformation", "AD_P_Value")])
 heart_failure_data_transformed(data = heart_failure_data, best_transforms = best_transforms)
 
 # Scale features (excluding target column)
-heart_failure_data_transformed[,-1] <- apply(
-  heart_failure_data_transformed[,-1], 2, scale
+heart_failure_data_transformed[, -1] <- apply(
+  heart_failure_data_transformed[, -1], 2, scale
 )
 
 # --- Visualize Transformed and Scaled Data -----------------------------------
@@ -159,14 +159,14 @@ split_heart_failure <- opdisDownsampling::opdisDownsampling(
   MaxCores = nProc
 )
 heart_failure_TrainingTest <- heart_failure_data_transformed[
-  rownames(heart_failure_data_transformed) %in% split_heart_failure$ReducedInstances, ]
+  rownames(heart_failure_data_transformed) %in% split_heart_failure$ReducedInstances,]
 heart_failure_Validation <- heart_failure_data_transformed[
-  !rownames(heart_failure_data_transformed) %in% split_heart_failure$ReducedInstances, ]
+  !rownames(heart_failure_data_transformed) %in% split_heart_failure$ReducedInstances,]
 
 # --- Statistical Significance Analysis ---------------------------------------
 # Perform t-test for each variable (excluding target)
 p_vals_ttest <- apply(
-  heart_failure_data_transformed[,-1], 2,
+  heart_failure_data_transformed[, -1], 2,
   function(x) t.test(x ~ as.factor(heart_failure_data_transformed$Target))$p.value
 )
 
@@ -188,7 +188,7 @@ df_heart_failure_p_vals$Original_significant[
 # --- Visualize Significance --------------------------------------------------
 barplot_heart_failure_significant_vars <- ggplot(
   df_heart_failure_p_vals,
-  aes(x = -log10(p.value), y = reorder(Feature, -log10(p.value)), fill = factor(Original_significant))
+  aes(x = -log10(p.value), y = reorder(Feature, - log10(p.value)), fill = factor(Original_significant))
 ) +
   geom_bar(stat = "identity", color = "#8C5C00", alpha = 0.3) +
   geom_vline(xintercept = -log10(0.05), color = "salmon", linetype = "dashed") +

@@ -31,12 +31,12 @@ mouse_lipidomics_data_all <- read.csv(
   row.names = 1
 )
 
-mouse_lipidomics_metadata <- read.csv(  paste0(path_data, "mouse_lipidomics_metadata.csv"))
+mouse_lipidomics_metadata <- read.csv(paste0(path_data, "mouse_lipidomics_metadata.csv"))
 
 mouse_lipidomics_data <- cbind.data.frame(Target = mouse_lipidomics_metadata$GROUP, mouse_lipidomics_data_all)
 
 # Scale features (excluding target column)
-mouse_lipidomics_data[,-1] <- apply(mouse_lipidomics_data[,-1], 2, scale)
+mouse_lipidomics_data[, -1] <- apply(mouse_lipidomics_data[, -1], 2, scale)
 
 # --- Split Dataset: Training/Test/Validation (Not cuurently used) ---------------------------------
 max_cores <- NULL
@@ -59,7 +59,7 @@ mouse_lipidomics_Validation <- mouse_lipidomics_data[
 # --- Statistical Significance Analysis ---------------------------------------
 # Perform ANOVA for each variable (excluding target)
 p_vals_anova <- apply(
-  mouse_lipidomics_data[,-1], 2,
+  mouse_lipidomics_data[, -1], 2,
   function(x) summary(aov(x ~ mouse_lipidomics_data$Target))[[1]][["Pr(>F)"]][1]
 )
 
@@ -82,15 +82,15 @@ df_mouse_lipidomics_data_p_vals$Original_significant[
 # --- Visualize Significance --------------------------------------------------
 barplot_mouse_lipidomics_data_significant_vars <- ggplot(
   df_mouse_lipidomics_data_p_vals,
-  aes(x = -log10(p.value), y = reorder(Lipid, -log10(p.value)), fill = factor(Original_significant))
+  aes(x = -log10(p.value), y = reorder(Lipid, - log10(p.value)), fill = factor(Original_significant))
 ) +
-  geom_bar(stat = "identity", color = "#8C5C00", alpha=0.3) +
+  geom_bar(stat = "identity", color = "#8C5C00", alpha = 0.3) +
   geom_vline(xintercept = -log10(0.05), color = "salmon", linetype = "dashed") +
   annotate(
     "text", x = -log10(0.05), y = 1,
     label = "p = 0.05", hjust = -0.1, vjust = 1.5, color = "salmon",
     fontface = "plain", angle = 90
-  ) +  
+  ) +
   scale_fill_manual(values = c("0" = "#B37500", "1" = "#B37500")) +
   theme_light() +
   theme(
@@ -107,7 +107,7 @@ DataSetSizes <- c(
   "original", "engineered_0",
   "augmented_1_engineered", "augmented_5_engineered"
 )
-radius_gen_mouse_lipidomics <- 1.355932203  # From separate assessments
+radius_gen_mouse_lipidomics <- 1.355932203 # From separate assessments
 results_varimp_mouse_lipidomics <- analyze_variable_importance(
   data = mouse_lipidomics_data,
   class_name = "Target",
@@ -158,7 +158,7 @@ for (ds in DataSetSizes) {
   # Dynamically access the results object for each dataset size
   df2 <- results_varimp_mouse_lipidomics[[ds]]$feature_importance$df_features
   df1 <- df_mouse_lipidomics_data_p_vals
-  merged_df <- merge(df1, df2[, c("Var", "SelectedTrueCorr")], 
+  merged_df <- merge(df1, df2[, c("Var", "SelectedTrueCorr")],
                      by.x = "Lipid", by.y = "Var", all.x = TRUE)
   ct <- cor.test(merged_df$p.value, merged_df$SelectedTrueCorr, method = "kendall")
   cor_results_mouse_lipidomics <- rbind(
@@ -196,13 +196,13 @@ cor_results_mouse_lipidomics$label <- sprintf("Tau = %.2f\np = %.3g", cor_result
 # If your correlations are negative, this ensures the label is visible
 cor_results_mouse_lipidomics$label_x <- cor_results_mouse_lipidomics$Correlation - 0.05 * sign(cor_results_mouse_lipidomics$Correlation)
 
-p_correlations_p_versus_var_freq <- 
+p_correlations_p_versus_var_freq <-
   ggplot(cor_results_mouse_lipidomics, aes(y = DataSetSize, x = Correlation, fill = EffectSizeLabel)) +
   geom_col(width = 0.7) +
-  # Add annotation for Tau and p-value
-  geom_text(
+# Add annotation for Tau and p-value
+geom_text(
     aes(x = Correlation, label = label),
-    hjust = ifelse(cor_results_mouse_lipidomics$Correlation < 0, 1.05, -0.05), 
+    hjust = ifelse(cor_results_mouse_lipidomics$Correlation < 0, 1.05, -0.05),
     vjust = 0.5,
     size = 4,
     color = "ghostwhite"
@@ -218,7 +218,7 @@ p_correlations_p_versus_var_freq <-
     )
   ) +
   scale_x_reverse() +
-  theme_light() + 
+  theme_light() +
   theme(
     legend.position = c(.8, .1),
     legend.background = element_rect(fill = alpha("white", 0.5), color = NA),

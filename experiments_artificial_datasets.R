@@ -27,8 +27,8 @@ ascending_significance_data <- read.csv("ascending_significance_data.csv")
 no_effect_data <- read.csv("no_effect_data.csv")
 
 # Scale features (excluding target column)
-ascending_significance_data[,-1] <- apply(ascending_significance_data[,-1], 2, scale)
-no_effect_data[,-1] <- apply(no_effect_data[,-1], 2, scale)
+ascending_significance_data[, -1] <- apply(ascending_significance_data[, -1], 2, scale)
+no_effect_data[, -1] <- apply(no_effect_data[, -1], 2, scale)
 
 ###############################################################################
 # Analysis: Ascending Significance Dataset
@@ -54,7 +54,7 @@ t_tests_p_ascending_long$variable <- factor(
 barplot_t_tests_p_ascending <- ggplot(
   t_tests_p_ascending_long, aes(y = variable, x = -log10(value))
 ) +
-  geom_bar(stat = "identity", color = "#8C5C00", fill = "#B37500", alpha=0.3) +
+  geom_bar(stat = "identity", color = "#8C5C00", fill = "#B37500", alpha = 0.3) +
   geom_vline(xintercept = -log10(0.05), color = "salmon", linetype = "dashed") +
   annotate(
     "text", x = -log10(0.05), y = t_tests_p_ascending_long$variable[1],
@@ -87,7 +87,7 @@ asc_Validation <- ascending_significance_data[
 # --- Feature Importance Analysis ---------------------------------------------
 DataSetSizes <- c("original", "engineered_0", "augmented_1_engineered",
                   "augmented_5_engineered", "augmented_50_engineered")
-radius_gen_asc <- 3.5  #From separate assessments
+radius_gen_asc <- 3.5 #From separate assessments
 results_varimp_asc <- analyze_variable_importance(
   data = ascending_significance_data,
   class_name = "Target",
@@ -144,7 +144,7 @@ t_tests_p_no_effect_long$variable <- factor(
 barplot_t_tests_p_no_effect <- ggplot(
   t_tests_p_no_effect_long, aes(y = variable, x = -log10(value))
 ) +
-  geom_bar(stat = "identity", color = "#8C5C00", fill = "#B37500", alpha=0.3) +
+  geom_bar(stat = "identity", color = "#8C5C00", fill = "#B37500", alpha = 0.3) +
   geom_vline(xintercept = -log10(0.05), color = "salmon", linetype = "dashed") +
   annotate(
     "text", x = -log10(0.05), y = t_tests_p_no_effect_long$variable[1],
@@ -179,7 +179,7 @@ results_varimp_noeff <- analyze_variable_importance(
   DataSetSizes = DataSetSizes,
   density_radius = radius_gen_noeff,
   show_varfreq_limit = TRUE,
-  show_varimp_limit = TRUE, 
+  show_varimp_limit = TRUE,
   mark_sig = FALSE,
   sort_circular = TRUE
 )

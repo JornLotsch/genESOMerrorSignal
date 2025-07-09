@@ -58,7 +58,7 @@ distribution_results <- explore_distribution(
 par(mfrow = c(1, 1))
 
 # Print summary of best transformations
-best_transforms <- distribution_results[distribution_results$Best == "*", ]
+best_transforms <- distribution_results[distribution_results$Best == "*",]
 verbose("Best transformations by variable:")
 print(best_transforms[, c("Variable", "Transformation", "AD_P_Value")])
 
@@ -67,8 +67,8 @@ print(best_transforms[, c("Variable", "Transformation", "AD_P_Value")])
 pain_thresholds_sex_data_transformed <- apply_var_wise_best_tukey_transformation(data = pain_thresholds_sex_data, best_transforms = best_transforms)
 
 # Scale features (excluding target column)
-pain_thresholds_sex_data_transformed[,-1] <- apply(
-  pain_thresholds_sex_data_transformed[,-1], 2, scale
+pain_thresholds_sex_data_transformed[, -1] <- apply(
+  pain_thresholds_sex_data_transformed[, -1], 2, scale
 )
 
 # --- Visualize Transformed and Scaled Data -----------------------------------
@@ -155,14 +155,14 @@ split_pain_thresholds_sex <- opdisDownsampling::opdisDownsampling(
   MaxCores = nProc
 )
 pain_thresholds_sex_TrainingTest <- pain_thresholds_sex_data_transformed[
-  rownames(pain_thresholds_sex_data_transformed) %in% split_pain_thresholds_sex$ReducedInstances, ]
+  rownames(pain_thresholds_sex_data_transformed) %in% split_pain_thresholds_sex$ReducedInstances,]
 pain_thresholds_sex_Validation <- pain_thresholds_sex_data_transformed[
-  !rownames(pain_thresholds_sex_data_transformed) %in% split_pain_thresholds_sex$ReducedInstances, ]
+  !rownames(pain_thresholds_sex_data_transformed) %in% split_pain_thresholds_sex$ReducedInstances,]
 
 # --- Statistical Significance Analysis ---------------------------------------
 # Perform t-test for each variable (excluding target)
 p_vals_ttest <- apply(
-  pain_thresholds_sex_data_transformed[,-1], 2,
+  pain_thresholds_sex_data_transformed[, -1], 2,
   function(x) t.test(x ~ as.factor(pain_thresholds_sex_data_transformed$Target))$p.value
 )
 
@@ -184,7 +184,7 @@ df_pain_thresholds_sex_p_vals$Original_significant[
 # --- Visualize Significance --------------------------------------------------
 barplot_pain_thresholds_sex_significant_vars <- ggplot(
   df_pain_thresholds_sex_p_vals,
-  aes(x = -log10(p.value), y = reorder(Feature, -log10(p.value)), fill = factor(Original_significant))
+  aes(x = -log10(p.value), y = reorder(Feature, - log10(p.value)), fill = factor(Original_significant))
 ) +
   geom_bar(stat = "identity", color = "#8C5C00", alpha = 0.3) +
   geom_vline(xintercept = -log10(0.05), color = "salmon", linetype = "dashed") +
