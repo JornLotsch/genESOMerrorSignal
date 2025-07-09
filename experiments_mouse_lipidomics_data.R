@@ -147,7 +147,7 @@ ggsave(
 # --- Correlation Analysis and Effect Size Visualization -------------
 # Calculate Kendall correlations between p-values and feature importance for each DataSetSize
 
-cor_results <- data.frame(
+cor_results_mouse_lipidomics <- data.frame(
   DataSetSize = character(),
   Correlation = numeric(),
   p.value = numeric(),
@@ -161,8 +161,8 @@ for (ds in DataSetSizes) {
   merged_df <- merge(df1, df2[, c("Var", "SelectedTrueCorr")], 
                      by.x = "Lipid", by.y = "Var", all.x = TRUE)
   ct <- cor.test(merged_df$p.value, merged_df$SelectedTrueCorr, method = "kendall")
-  cor_results <- rbind(
-    cor_results,
+  cor_results_mouse_lipidomics <- rbind(
+    cor_results_mouse_lipidomics,
     data.frame(
       DataSetSize = ds,
       Correlation = ct$estimate,
@@ -172,37 +172,37 @@ for (ds in DataSetSizes) {
 }
 
 # Ensure DataSetSize is a factor with reversed levels of DataSetSizes for plotting order
-cor_results$DataSetSize <- factor(
-  cor_results$DataSetSize,
+cor_results_mouse_lipidomics$DataSetSize <- factor(
+  cor_results_mouse_lipidomics$DataSetSize,
   levels = rev(DataSetSizes)
 )
 
 # --- Effect Size Interpretation ----------------------------------------------
 # Option 1: Funder & Ozer (2019) via effectsize::interpret_r (default, recommended)
-cor_results$EffectSizeLabel <- effectsize::interpret_r(cor_results$Correlation, rules = "funder2019")
+cor_results_mouse_lipidomics$EffectSizeLabel <- effectsize::interpret_r(cor_results_mouse_lipidomics$Correlation, rules = "funder2019")
 
 # Option 2: Cohen (1988) style, more common for tau/rho (commented out)
-# cor_results$EffectSizeLabel <- cut(
-#   abs(cor_results$Correlation),
+# cor_results_mouse_lipidomics$EffectSizeLabel <- cut(
+#   abs(cor_results_mouse_lipidomics$Correlation),
 #   breaks = c(-Inf, 0.1, 0.3, 0.5, Inf),
 #   labels = c("very small", "small", "medium", "large")
 # )
 
 # --- Visualize Correlation Effect Sizes with Annotation ----------------------
 # Prepare annotation labels
-cor_results$label <- sprintf("Tau = %.2f\np = %.3g", cor_results$Correlation, cor_results$p.value)
+cor_results_mouse_lipidomics$label <- sprintf("Tau = %.2f\np = %.3g", cor_results_mouse_lipidomics$Correlation, cor_results_mouse_lipidomics$p.value)
 
 # Find the minimum correlation (for placing text just outside the bar)
 # If your correlations are negative, this ensures the label is visible
-cor_results$label_x <- cor_results$Correlation - 0.05 * sign(cor_results$Correlation)
+cor_results_mouse_lipidomics$label_x <- cor_results_mouse_lipidomics$Correlation - 0.05 * sign(cor_results_mouse_lipidomics$Correlation)
 
 p_correlations_p_versus_var_freq <- 
-  ggplot(cor_results, aes(y = DataSetSize, x = Correlation, fill = EffectSizeLabel)) +
+  ggplot(cor_results_mouse_lipidomics, aes(y = DataSetSize, x = Correlation, fill = EffectSizeLabel)) +
   geom_col(width = 0.7) +
   # Add annotation for Tau and p-value
   geom_text(
     aes(x = Correlation, label = label),
-    hjust = ifelse(cor_results$Correlation < 0, 1.05, -0.05), 
+    hjust = ifelse(cor_results_mouse_lipidomics$Correlation < 0, 1.05, -0.05), 
     vjust = 0.5,
     size = 4,
     color = "ghostwhite"
@@ -241,7 +241,7 @@ ggsave(
 # --- Annotate Variable Selection Frequency Plots with Correlation Results ----
 
 # Prepare annotation text for each DataSetSize
-cor_results$annotation <- sprintf("Tau = %.2f\np = %.3g", cor_results$Correlation, cor_results$p.value)
+cor_results_mouse_lipidomics$annotation <- sprintf("Tau = %.2f\np = %.3g", cor_results_mouse_lipidomics$Correlation, cor_results_mouse_lipidomics$p.value)
 
 # Function to add annotation to a plot
 add_correlation_annotation <- function(plot, label) {
@@ -259,19 +259,19 @@ p_sel_freq_annotated <- list(
   barplot_mouse_lipidomics_data_significant_vars,
   add_correlation_annotation(
     results_varimp_mouse_lipidomics$original$p_selection_freq + labs(title = "Original"),
-    cor_results$annotation[cor_results$DataSetSize == "original"]
+    cor_results_mouse_lipidomics$annotation[cor_results_mouse_lipidomics$DataSetSize == "original"]
   ),
   add_correlation_annotation(
     results_varimp_mouse_lipidomics$engineered_0$p_selection_freq + labs(title = "Engineered 0"),
-    cor_results$annotation[cor_results$DataSetSize == "engineered_0"]
+    cor_results_mouse_lipidomics$annotation[cor_results_mouse_lipidomics$DataSetSize == "engineered_0"]
   ),
   add_correlation_annotation(
     results_varimp_mouse_lipidomics$augmented_1_engineered$p_selection_freq + labs(title = "Augmented 1, engineered"),
-    cor_results$annotation[cor_results$DataSetSize == "augmented_1_engineered"]
+    cor_results_mouse_lipidomics$annotation[cor_results_mouse_lipidomics$DataSetSize == "augmented_1_engineered"]
   ),
   add_correlation_annotation(
     results_varimp_mouse_lipidomics$augmented_5_engineered$p_selection_freq + labs(title = "Augmented 5, engineered"),
-    cor_results$annotation[cor_results$DataSetSize == "augmented_5_engineered"]
+    cor_results_mouse_lipidomics$annotation[cor_results_mouse_lipidomics$DataSetSize == "augmented_5_engineered"]
   )
 )
 

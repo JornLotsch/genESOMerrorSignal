@@ -1,8 +1,8 @@
 ###############################################################################
-# Experiment 4: Heart Failure Clinical Records Dataset Analysis
+# Experiment 6: ILPD (Indian Liver Patient Dataset) Analysis
 # Description:
 #   Analyzes a real-world heart failure dataset from
-#   https://archive.ics.uci.edu/dataset/519/heart+failure+clinical+records
+#   https://archive.ics.uci.edu/dataset/225/ilpd+indian+liver+patient+dataset
 #   Steps: scaling, data splitting, statistical significance analysis,
 #   feature importance analysis, and visualization.
 ###############################################################################
@@ -28,33 +28,33 @@ library(scales)
 library(Boruta)
 
 # --- Load and Prepare Heart Failure Dataset ----------------------------------
-path_data <- "/home/joern/Aktuell/GenerativeESOM/08AnalyseProgramme/R/genESOMerrorSignal/heart+failure+clinical+records/"
+path_data <- "/home/joern/Aktuell/GenerativeESOM/08AnalyseProgramme/R/genESOMerrorSignal/ilpd+indian+liver+patient+dataset/"
 
-heart_failure_data_all <- read.csv(
-  paste0(path_data, "heart_failure_clinical_records_dataset.csv")
+Indian_liver_patient_data_all <- read.csv(
+  paste0(path_data, "Indian Liver Patient Dataset (ILPD).csv")
 )
 
 feature_vars <- c(
-  "age", "anaemia", "creatinine_phosphokinase", "diabetes", "ejection_fraction",
-  "high_blood_pressure", "platelets", "serum_creatinine", "serum_sodium", "sex"
+  "Age", "Gender", "TB", "DB", "Alkphos", "Sgpt", "Sgot", "TP", "ALB", "A.G.Ratio"
 )
 
-heart_failure_data <- cbind.data.frame(
-  Target = heart_failure_data_all$DEATH_EVENT,
-  heart_failure_data_all[, feature_vars]
+Indian_liver_patient_data <- cbind.data.frame(
+  Target = as.integer(Indian_liver_patient_data_all$Selector),
+  Indian_liver_patient_data_all[, feature_vars]
 )
 
-dim(heart_failure_data)
-table(heart_failure_data$Target)
-str(heart_failure_data)
+Indian_liver_patient_data <- na.omit(Indian_liver_patient_data)
+dim(Indian_liver_patient_data)
+table(Indian_liver_patient_data$Target)
+str(Indian_liver_patient_data)
 
 # --- Explore Feature Distributions and Transformations -----------------------
 class_name <- "Target"
-class_column <- heart_failure_data[[class_name]]
+class_column <- Indian_liver_patient_data[[class_name]]
 transformation_methods <- c("none", "log10", "sqrt", "reciprocal", "boxcox")
 
 distribution_results <- explore_distribution(
-  data = heart_failure_data,
+  data = Indian_liver_patient_data,
   classes = class_column,
   transformation_methods = transformation_methods,
   plot_results = TRUE
@@ -68,20 +68,20 @@ print(best_transforms[, c("Variable", "Transformation", "AD_P_Value")])
 
 # --- Transform and Scale Features --------------------------------------------
 
-heart_failure_data_transformed(data = heart_failure_data, best_transforms = best_transforms)
+Indian_liver_patient_data_transformed <- apply_var_wise_best_tukey_transformation(data = Indian_liver_patient_data, best_transforms = best_transforms)
 
 # Scale features (excluding target column)
-heart_failure_data_transformed[,-1] <- apply(
-  heart_failure_data_transformed[,-1], 2, scale
+Indian_liver_patient_data_transformed[,-1] <- apply(
+  Indian_liver_patient_data_transformed[,-1], 2, scale
 )
 
 # --- Visualize Transformed and Scaled Data -----------------------------------
-heart_failure_data_transformed_long <- reshape2::melt(
-  heart_failure_data_transformed, id.vars = "Target"
+Indian_liver_patient_data_transformed_long <- reshape2::melt(
+  Indian_liver_patient_data_transformed, id.vars = "Target"
 )
 
-p_heart_failure <- ggplot(
-  heart_failure_data_transformed_long,
+p_Indian_liver_patient <- ggplot(
+  Indian_liver_patient_data_transformed_long,
   aes(x = variable, y = value, color = as.factor(Target), fill = as.factor(Target))
 ) +
   geom_violin(alpha = .3) +
@@ -103,7 +103,7 @@ p_heart_failure <- ggplot(
 # --- Feature Importance Analysis: Boruta -------------------------------------
 set.seed(42)
 all_boruta <- Boruta::Boruta(
-  Target ~ ., data = heart_failure_data_transformed,
+  Target ~ ., data = Indian_liver_patient_data_transformed,
   pValue = 0.0001, maxRuns = 100
 )
 
@@ -118,7 +118,7 @@ all_boruta_long$color <- ifelse(
   )
 )
 
-p_heart_failure_boruta <- ggplot(
+p_Indian_liver_patient_boruta <- ggplot(
   all_boruta_long,
   aes(x = reorder(Var2, value), y = value, color = color, fill = color)
 ) +
@@ -137,57 +137,57 @@ p_heart_failure_boruta <- ggplot(
   scale_color_manual(values = c("chartreuse4", "salmon", "grey80")) +
   scale_fill_manual(values = c("chartreuse4", "salmon", "grey80"))
 
-pp_heart_failure <- cowplot::plot_grid(
-  p_heart_failure,
-  p_heart_failure_boruta,
+pp_Indian_liver_patient <- cowplot::plot_grid(
+  p_Indian_liver_patient,
+  p_Indian_liver_patient_boruta,
   labels = "AUTO",
   align = "tb"
 )
-print(pp_heart_failure)
+print(pp_Indian_liver_patient)
 
 # --- Split Dataset: Training/Test/Validation (Not currently used) ------------
 max_cores <- NULL
 nProc <- min(parallel::detectCores() - 1, max_cores)
 seed <- 42
 
-split_heart_failure <- opdisDownsampling::opdisDownsampling(
-  Data = within(heart_failure_data_transformed, rm(Target)),
-  Cls = heart_failure_data_transformed$Target,
-  Size = 0.8 * nrow(heart_failure_data_transformed),
+split_Indian_liver_patient <- opdisDownsampling::opdisDownsampling(
+  Data = within(Indian_liver_patient_data_transformed, rm(Target)),
+  Cls = Indian_liver_patient_data_transformed$Target,
+  Size = 0.8 * nrow(Indian_liver_patient_data_transformed),
   Seed = seed,
   nTrials = 10000,
   MaxCores = nProc
 )
-heart_failure_TrainingTest <- heart_failure_data_transformed[
-  rownames(heart_failure_data_transformed) %in% split_heart_failure$ReducedInstances, ]
-heart_failure_Validation <- heart_failure_data_transformed[
-  !rownames(heart_failure_data_transformed) %in% split_heart_failure$ReducedInstances, ]
+Indian_liver_patient_TrainingTest <- Indian_liver_patient_data_transformed[
+  rownames(Indian_liver_patient_data_transformed) %in% split_Indian_liver_patient$ReducedInstances, ]
+Indian_liver_patient_Validation <- Indian_liver_patient_data_transformed[
+  !rownames(Indian_liver_patient_data_transformed) %in% split_Indian_liver_patient$ReducedInstances, ]
 
 # --- Statistical Significance Analysis ---------------------------------------
 # Perform t-test for each variable (excluding target)
 p_vals_ttest <- apply(
-  heart_failure_data_transformed[,-1], 2,
-  function(x) t.test(x ~ as.factor(heart_failure_data_transformed$Target))$p.value
+  Indian_liver_patient_data_transformed[,-1], 2,
+  function(x) t.test(x ~ as.factor(Indian_liver_patient_data_transformed$Target))$p.value
 )
 
 # Identify significant variables (example list)
-heart_failure_significant_vars <- c(
+Indian_liver_patient_significant_vars <- c(
   "ejection_fraction", "serum_creatinine"
 )
 
 # Prepare data for plotting
-df_heart_failure_p_vals <- cbind.data.frame(
+df_Indian_liver_patient_p_vals <- cbind.data.frame(
   p.value = p_vals_ttest,
   Original_significant = 0
 )
-df_heart_failure_p_vals$Feature <- rownames(df_heart_failure_p_vals)
-df_heart_failure_p_vals$Original_significant[
-  df_heart_failure_p_vals$Feature %in% heart_failure_significant_vars
+df_Indian_liver_patient_p_vals$Feature <- rownames(df_Indian_liver_patient_p_vals)
+df_Indian_liver_patient_p_vals$Original_significant[
+  df_Indian_liver_patient_p_vals$Feature %in% Indian_liver_patient_significant_vars
 ] <- 1
 
 # --- Visualize Significance --------------------------------------------------
-barplot_heart_failure_significant_vars <- ggplot(
-  df_heart_failure_p_vals,
+barplot_Indian_liver_patient_significant_vars <- ggplot(
+  df_Indian_liver_patient_p_vals,
   aes(x = -log10(p.value), y = reorder(Feature, -log10(p.value)), fill = factor(Original_significant))
 ) +
   geom_bar(stat = "identity", color = "#8C5C00", alpha = 0.3) +
@@ -206,21 +206,21 @@ barplot_heart_failure_significant_vars <- ggplot(
     axis.text.x = element_text(angle = 0, vjust = 0.5, hjust = 1)
   )
 
-print(barplot_heart_failure_significant_vars)
+print(barplot_Indian_liver_patient_significant_vars)
 
 # --- U-Matrix and Density Radius Calculation ---------------------------------
 set.seed(seed)
-umx_heart_failure <- Umatrix::esomTrain(
-  Data = as.matrix(within(heart_failure_data_transformed, rm(Target))),
+umx_Indian_liver_patient <- Umatrix::esomTrain(
+  Data = as.matrix(within(Indian_liver_patient_data_transformed, rm(Target))),
   Lines = 80, Columns = 50, Toroid = TRUE, Epochs = 100
 )
 
-radius_umx_heart_failure <- Umatrix::calculate_Delauny_radius(
-  Data = as.matrix(within(heart_failure_data_transformed, rm(Target))),
-  BestMatches = umx_heart_failure$BestMatches,
+radius_umx_Indian_liver_patient <- Umatrix::calculate_Delauny_radius(
+  Data = as.matrix(within(Indian_liver_patient_data_transformed, rm(Target))),
+  BestMatches = umx_Indian_liver_patient$BestMatches,
   Columns = 50, Lines = 80, Toroid = TRUE
 )
-radius_heart_failure <- radius_umx_heart_failure$RadiusByEM
+radius_Indian_liver_patient <- radius_umx_Indian_liver_patient$RadiusByEM
 
 # --- Feature Importance Analysis ---------------------------------------------
 DataSetSizes <- c(
@@ -228,46 +228,46 @@ DataSetSizes <- c(
   "augmented_1_engineered", "augmented_5_engineered"
 )
 
-results_varimp_heart_failure <- analyze_variable_importance(
-  data = heart_failure_data_transformed,
+results_varimp_Indian_liver_patient <- analyze_variable_importance(
+  data = Indian_liver_patient_data_transformed,
   class_name = "Target",
-  data_reduced = heart_failure_TrainingTest,
+  data_reduced = Indian_liver_patient_TrainingTest,
   DataSetSizes = DataSetSizes,
-  density_radius = radius_heart_failure,
+  density_radius = radius_Indian_liver_patient,
   show_varimp_limit = TRUE,
   mark_sig = FALSE,
   sort_circular = FALSE
 )
 
 # --- Plot Variable Selection Frequency ---------------------------------------
-plot_heart_failure_selfreq <- cowplot::plot_grid(
-  barplot_heart_failure_significant_vars,
-  results_varimp_heart_failure$original$p_selection_freq + labs(title = "Original"),
-  results_varimp_heart_failure$engineered_0$p_selection_freq + labs(title = "Engineered 0"),
-  results_varimp_heart_failure$augmented_1_engineered$p_selection_freq + labs(title = "Augmented 1, engineered"),
-  results_varimp_heart_failure$augmented_5_engineered$p_selection_freq + labs(title = "Augmented 5, engineered"),
+plot_Indian_liver_patient_selfreq <- cowplot::plot_grid(
+  barplot_Indian_liver_patient_significant_vars,
+  results_varimp_Indian_liver_patient$original$p_selection_freq + labs(title = "Original"),
+  results_varimp_Indian_liver_patient$engineered_0$p_selection_freq + labs(title = "Engineered 0"),
+  results_varimp_Indian_liver_patient$augmented_1_engineered$p_selection_freq + labs(title = "Augmented 1, engineered"),
+  results_varimp_Indian_liver_patient$augmented_5_engineered$p_selection_freq + labs(title = "Augmented 5, engineered"),
   labels = "AUTO", nrow = 1, align = "h", axis = "tb"
 ) +
   plot_annotation(
     title = "Variable selection frequency",
-    subtitle = "Dataset: heart_failure_clinical_records"
+    subtitle = "Dataset: Indian_liver_patient_data"
   ) &
   theme(
     plot.tag.position = c(0.5, 1),
     plot.tag = element_text(size = 14, face = "bold", vjust = 0)
   )
 
-print(plot_heart_failure_selfreq)
+print(plot_Indian_liver_patient_selfreq)
 ggsave(
-  "plot_heart_failure_clinical_records_selection_freq.svg",
-  plot_heart_failure_selfreq,
+  "plot_Indian_liver_patient_data_selection_freq.svg",
+  plot_Indian_liver_patient_selfreq,
   width = 22, height = 10, limitsize = FALSE
 )
 
 # --- Correlation Analysis and Effect Size Visualization ----------------------
 # Calculate Kendall correlations between p-values and feature importance for each DataSetSize
 
-cor_results_heart_failure <- data.frame(
+cor_results_liver <- data.frame(
   DataSetSize = character(),
   Correlation = numeric(),
   p.value = numeric(),
@@ -275,13 +275,13 @@ cor_results_heart_failure <- data.frame(
 )
 
 for (ds in DataSetSizes) {
-  df2 <- results_varimp_heart_failure[[ds]]$feature_importance$df_features
-  df1 <- df_heart_failure_p_vals
+  df2 <- results_varimp_Indian_liver_patient[[ds]]$feature_importance$df_features
+  df1 <- df_Indian_liver_patient_p_vals
   merged_df <- merge(df1, df2[, c("Var", "SelectedTrueCorr")],
                      by.x = "Feature", by.y = "Var", all.x = TRUE)
   ct <- cor.test(merged_df$p.value, merged_df$SelectedTrueCorr, method = "kendall")
-  cor_results_heart_failure <- rbind(
-    cor_results_heart_failure,
+  cor_results_liver <- rbind(
+    cor_results_liver,
     data.frame(
       DataSetSize = ds,
       Correlation = ct$estimate,
@@ -291,27 +291,27 @@ for (ds in DataSetSizes) {
 }
 
 # Ensure DataSetSize is a factor with reversed levels of DataSetSizes for plotting order
-cor_results_heart_failure$DataSetSize <- factor(
-  cor_results_heart_failure$DataSetSize,
+cor_results_liver$DataSetSize <- factor(
+  cor_results_liver$DataSetSize,
   levels = rev(DataSetSizes)
 )
 
 # --- Effect Size Interpretation ----------------------------------------------
-cor_results_heart_failure$EffectSizeLabel <- effectsize::interpret_r(
-  cor_results_heart_failure$Correlation, rules = "funder2019"
+cor_results_liver$EffectSizeLabel <- effectsize::interpret_r(
+  cor_results_liver$Correlation, rules = "funder2019"
 )
 
 # --- Visualize Correlation Effect Sizes with Annotation ----------------------
-cor_results_heart_failure$label <- sprintf("Tau = %.2f\np = %.3g", cor_results_heart_failure$Correlation, cor_results_heart_failure$p.value)
-cor_results_heart_failure$label_x <- cor_results_heart_failure$Correlation - 0.05 * sign(cor_results_heart_failure$Correlation)
+cor_results_liver$label <- sprintf("Tau = %.2f\np = %.3g", cor_results_liver$Correlation, cor_results_liver$p.value)
+cor_results_liver$label_x <- cor_results_liver$Correlation - 0.05 * sign(cor_results_liver$Correlation)
 
 p_correlations_p_versus_var_freq <- ggplot(
-  cor_results_heart_failure, aes(y = DataSetSize, x = Correlation, fill = EffectSizeLabel)
+  cor_results_liver, aes(y = DataSetSize, x = Correlation, fill = EffectSizeLabel)
 ) +
   geom_col(width = 0.7) +
   geom_text(
     aes(x = Correlation, label = label),
-    hjust = ifelse(cor_results_heart_failure$Correlation < 0, 1.05, -0.05),
+    hjust = ifelse(cor_results_liver$Correlation < 0, 1.05, -0.05),
     vjust = 0.5,
     size = 4,
     color = "ghostwhite"
@@ -341,13 +341,13 @@ p_correlations_p_versus_var_freq <- ggplot(
 
 print(p_correlations_p_versus_var_freq)
 ggsave(
-  "p_correlations_p_versus_var_freq_heart_failure.svg",
+  "p_correlations_p_versus_var_freq_Indian_liver_patient.svg",
   p_correlations_p_versus_var_freq,
   width = 6, height = 6, limitsize = FALSE
 )
 
 # --- Annotate Variable Selection Frequency Plots with Correlation Results ----
-cor_results_heart_failure$annotation <- sprintf("Tau = %.2f\np = %.3g", cor_results_heart_failure$Correlation, cor_results_heart_failure$p.value)
+cor_results_liver$annotation <- sprintf("Tau = %.2f\np = %.3g", cor_results_liver$Correlation, cor_results_liver$p.value)
 
 add_correlation_annotation <- function(plot, label) {
   plot + annotate(
@@ -360,41 +360,41 @@ add_correlation_annotation <- function(plot, label) {
 }
 
 p_sel_freq_annotated <- list(
-  barplot_heart_failure_significant_vars,
+  barplot_Indian_liver_patient_significant_vars,
   add_correlation_annotation(
-    results_varimp_heart_failure$original$p_selection_freq + labs(title = "Original"),
-    cor_results_heart_failure$annotation[cor_results_heart_failure$DataSetSize == "original"]
+    results_varimp_Indian_liver_patient$original$p_selection_freq + labs(title = "Original"),
+    cor_results_liver$annotation[cor_results_liver$DataSetSize == "original"]
   ),
   add_correlation_annotation(
-    results_varimp_heart_failure$engineered_0$p_selection_freq + labs(title = "Engineered 0"),
-    cor_results_heart_failure$annotation[cor_results_heart_failure$DataSetSize == "engineered_0"]
+    results_varimp_Indian_liver_patient$engineered_0$p_selection_freq + labs(title = "Engineered 0"),
+    cor_results_liver$annotation[cor_results_liver$DataSetSize == "engineered_0"]
   ),
   add_correlation_annotation(
-    results_varimp_heart_failure$augmented_1_engineered$p_selection_freq + labs(title = "Augmented 1, engineered"),
-    cor_results_heart_failure$annotation[cor_results_heart_failure$DataSetSize == "augmented_1_engineered"]
+    results_varimp_Indian_liver_patient$augmented_1_engineered$p_selection_freq + labs(title = "Augmented 1, engineered"),
+    cor_results_liver$annotation[cor_results_liver$DataSetSize == "augmented_1_engineered"]
   ),
   add_correlation_annotation(
-    results_varimp_heart_failure$augmented_5_engineered$p_selection_freq + labs(title = "Augmented 5, engineered"),
-    cor_results_heart_failure$annotation[cor_results_heart_failure$DataSetSize == "augmented_5_engineered"]
+    results_varimp_Indian_liver_patient$augmented_5_engineered$p_selection_freq + labs(title = "Augmented 5, engineered"),
+    cor_results_liver$annotation[cor_results_liver$DataSetSize == "augmented_5_engineered"]
   )
 )
 
-plot_heart_failure_selfreq_annotated <- cowplot::plot_grid(
+plot_Indian_liver_patient_selfreq_annotated <- cowplot::plot_grid(
   plotlist = p_sel_freq_annotated,
   labels = "AUTO", nrow = 1, align = "h", axis = "tb"
 ) +
   plot_annotation(
     title = "Variable selection frequency",
-    subtitle = "Dataset: heart_failure_clinical_records"
+    subtitle = "Dataset: Indian_liver_patient_clinical_records"
   ) &
   theme(
     plot.tag.position = c(0.5, 1),
     plot.tag = element_text(size = 14, face = "bold", vjust = 0)
   )
 
-print(plot_heart_failure_selfreq_annotated)
+print(plot_Indian_liver_patient_selfreq_annotated)
 ggsave(
-  "plot_heart_failure_clinical_records_selection_freq_annotated.svg",
-  plot_heart_failure_selfreq_annotated,
+  "plot_Indian_liver_patient_clinical_records_selection_freq_annotated.svg",
+  plot_Indian_liver_patient_selfreq_annotated,
   width = 22, height = 10, limitsize = FALSE
 )

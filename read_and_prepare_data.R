@@ -531,22 +531,22 @@ apply_best_tukey_transformation <- function(data) {
 #' @param max_vars Maximum number of variables to process
 #' @return Data frame with Anderson-Darling test results for each variable and transformation
 explore_distribution <- function(data, classes = NULL, transformation_methods = "none",
-                                 variables = NULL, plot_results = TRUE, max_vars = 20) {
+                                 variables = NULL, plot_results = TRUE, max_vars = 20, random_seed = 123) {
   # Save original plotting parameters to restore later
   original_par <- par(no.readonly = TRUE)
   on.exit(par(original_par))
-
+  
   if (is.null(variables)) {
     variables <- names(data)
   }
-
+  
   # Sample only max_vars variables if there are too many
   if (length(variables) > max_vars) {
     set.seed(random_seed)
     variables <- sample(variables, max_vars)
-    verbose("Too many variables, sampling %d at random for distribution exploration", max_vars)
+    message(sprintf("Too many variables, sampling %d at random for distribution exploration", max_vars))
   }
-
+  
   # Create a data frame to store results
   results <- data.frame(
     Variable = character(),
@@ -556,16 +556,16 @@ explore_distribution <- function(data, classes = NULL, transformation_methods = 
     Best = character(),
     stringsAsFactors = FALSE
   )
-
+  
   # If plotting is enabled, set up the plot layout
   if (plot_results) {
     par(mfrow = c(length(transformation_methods), 3))
   }
-
+  
   # Process each variable
-  for (i in 1:length(variables)) {
+  for (i in seq_along(variables)) {
     variable_data <- subset(data, select = variables[i])[, 1]
-
+    
     # Create a temporary data frame for this variable's results
     var_results <- data.frame(
       Variable = character(),
@@ -575,75 +575,55 @@ explore_distribution <- function(data, classes = NULL, transformation_methods = 
       Best = character(),
       stringsAsFactors = FALSE
     )
-
-    for (i1 in 1:length(transformation_methods)) {
-      # Apply transformation
+    
+    for (i1 in seq_along(transformation_methods)) {
       transformation_success <- TRUE
       ad_statistic <- NA
       ad_p_value <- NA
-
+      transformed_data <- NULL
+      
+      # Apply transformation with error handling
       if (transformation_methods[i1] == "none") {
         transformed_data <- variable_data
       } else if (transformation_methods[i1] == "log10") {
-        # Check for non-positive values
         if (any(variable_data <= 0, na.rm = TRUE)) {
           transformation_success <- FALSE
-          if (plot_results) {
-            plot(1, 1, main = "Cannot apply log10 to non-positive values", type = "n")
-          }
         } else {
           transformed_data <- log10(variable_data)
         }
       } else if (transformation_methods[i1] == "sqrt") {
-        # Check for negative values
         if (any(variable_data < 0, na.rm = TRUE)) {
           transformation_success <- FALSE
-          if (plot_results) {
-            plot(1, 1, main = "Cannot apply sqrt to negative values", type = "n")
-          }
         } else {
           transformed_data <- sqrt(variable_data)
         }
       } else if (transformation_methods[i1] == "reciprocal") {
-        # Check for zero values
         if (any(variable_data == 0, na.rm = TRUE)) {
           transformation_success <- FALSE
-          if (plot_results) {
-            plot(1, 1, main = "Cannot apply reciprocal to zero values", type = "n")
-          }
         } else {
           transformed_data <- 1 / variable_data
         }
       } else if (transformation_methods[i1] == "boxcox") {
-        # Use try-catch to handle potential BoxCox errors
-        tryCatch({
-          # Handle non-positive values
-          if (any(variable_data <= 0, na.rm = TRUE)) {
-            transformation_success <- FALSE
-            if (plot_results) {
-              plot(1, 1, main = "Cannot apply BoxCox to non-positive values", type = "n")
-            }
-          } else {
+        # Use tryCatch to handle potential BoxCox errors
+        if (any(variable_data <= 0, na.rm = TRUE)) {
+          transformation_success <- FALSE
+        } else {
+          tryCatch({
             lambda <- forecast::BoxCox.lambda(variable_data, method = "guerrero", lower = -2, upper = 2)
             transformed_data <- forecast::BoxCox(variable_data, lambda)
-          }
-        }, error = function(e) {
-          transformation_success <- FALSE
-          if (plot_results) {
-            plot(1, 1, main = "BoxCox transformation failed", type = "n")
-          }
-        })
+          }, error = function(e) {
+            transformation_success <<- FALSE
+          })
+        }
       } else {
         transformed_data <- variable_data
       }
-
+      
       # Run Anderson-Darling test if transformation was successful
       if (transformation_success && sum(!is.na(transformed_data)) >= 8) {
         ad_test_result <- tryCatch({
-          test <- ad.test(scale(transformed_data, center = TRUE, scale = TRUE))
-          ad_statistic <- test$statistic
-          ad_p_value <- test$p.value
-          test
+          test <- nortest::ad.test(scale(transformed_data, center = TRUE, scale = TRUE))
+          list(statistic = test$statistic, p.value = test$p.value)
         }, error = function(e) {
           list(statistic = NA, p.value = NA)
         })
@@ -652,11 +632,8 @@ explore_distribution <- function(data, classes = NULL, transformation_methods = 
       } else if (transformation_success && sum(!is.na(transformed_data)) < 8) {
         ad_statistic <- NA
         ad_p_value <- NA
-        if (plot_results) {
-          plot(1, 1, main = "Not enough data for normality test", type = "n")
-        }
       }
-
+      
       # Add results to the variable-specific data frame
       var_results <- rbind(var_results, data.frame(
         Variable = variables[i],
@@ -666,56 +643,122 @@ explore_distribution <- function(data, classes = NULL, transformation_methods = 
         Best = "",
         stringsAsFactors = FALSE
       ))
-
-      # Create plots if enabled and transformation was successful
-      if (plot_results && transformation_success) {
-        # Create histogram
-        hist(transformed_data,
-             prob = TRUE,
-             main = paste(variables[i], "\nTransformation:", transformation_methods[i1],
-                          "\nA-D p =", round(ad_p_value, 3)),
-             ylab = "Density",
-             xlab = "Value (transformed)"
-        )
-
-        # Create density plot
-        tryCatch({
-          if (length(unique(na.omit(transformed_data))) > 1) {
-            plot(density(transformed_data, na.rm = TRUE),
-                 main = "Density plot",
+      
+      # Robust plotting: always produce 3 plots (or placeholders)
+      if (plot_results) {
+        if (transformation_success && sum(!is.na(transformed_data)) >= 8) {
+          # Histogram
+          tryCatch({
+            hist(transformed_data,
+                 prob = TRUE,
+                 main = paste(variables[i], "\nTransformation:", transformation_methods[i1],
+                              "\nA-D p =", round(ad_p_value, 3)),
                  ylab = "Density",
                  xlab = "Value (transformed)")
-          } else {
-            plot(1, 1, main = "Not enough unique values for density plot", type = "n")
-          }
-        }, error = function(e) {
-          # If density estimation fails
-          plot(1, 1, main = "Density estimation failed", type = "n")
-        })
-
-        # Create QQ plot
-        if (sum(!is.na(transformed_data)) >= 3) {
-          qqnorm(transformed_data, main = "Q-Q Plot")
-          qqline(transformed_data, col = 2)
+          }, error = function(e) {
+            plot(1, 1, main = "Histogram failed", type = "n")
+          })
+          
+          # Density plot
+          tryCatch({
+            if (length(unique(na.omit(transformed_data))) > 1) {
+              plot(density(transformed_data, na.rm = TRUE),
+                   main = "Density plot",
+                   ylab = "Density",
+                   xlab = "Value (transformed)")
+            } else {
+              plot(1, 1, main = "Not enough unique values for density plot", type = "n")
+            }
+          }, error = function(e) {
+            plot(1, 1, main = "Density estimation failed", type = "n")
+          })
+          
+          # QQ plot
+          tryCatch({
+            if (sum(!is.na(transformed_data)) >= 3) {
+              qqnorm(transformed_data, main = "Q-Q Plot")
+              qqline(transformed_data, col = 2)
+            } else {
+              plot(1, 1, main = "Not enough data for Q-Q plot", type = "n")
+            }
+          }, error = function(e) {
+            plot(1, 1, main = "Q-Q plot failed", type = "n")
+          })
         } else {
-          plot(1, 1, main = "Not enough data for Q-Q plot", type = "n")
+          # If transformation failed or not enough data, show empty plots for all three
+          for (j in 1:3) {
+            plot(1, 1, main = "No data to plot", type = "n")
+          }
         }
       }
     }
-
+    
     # Identify the best transformation (highest p-value) for this variable
     max_p_idx <- which.max(var_results$AD_P_Value)
     if (length(max_p_idx) > 0 && !is.na(var_results$AD_P_Value[max_p_idx])) {
       var_results$Best[max_p_idx] <- "*"
     }
-
+    
     # Add this variable's results to the overall results
     results <- rbind(results, var_results)
   }
-
+  
   # Return the results data frame
   return(results)
 }
+
+#' Apply the best Tukey transformation to each variable
+#'
+#' This function applies the optimal transformation (as determined by a prior
+#' normality test, e.g., Anderson-Darling via \code{explore_distribution}) to each
+#' column of a data frame, using Tukey's ladder and related transformations.
+#'
+#' @param data Data frame to transform.
+#' @param best_transforms Data frame with columns "Variable" and "Transformation"
+#'   (as produced by \code{explore_distribution}), indicating the best transformation for each variable.
+#' @return Data frame with each selected column optimally transformed.
+#' @examples
+#' # Assuming you have run explore_distribution() and extracted best_transforms:
+#' # transformed_data <- apply_var_wise_best_tukey_transformation(my_data, best_transforms)
+apply_var_wise_best_tukey_transformation <- function(data, best_transforms) {
+  # Extract variable names and methods
+  vars <- best_transforms$Variable
+  methods <- best_transforms$Transformation
+  
+  # Internal transformation function
+  transform_var <- function(x, method) {
+    if (method == "none") {
+      return(x)
+    } else if (method == "boxcox") {
+      if (!requireNamespace("forecast", quietly = TRUE)) {
+        stop("Package 'forecast' needed for BoxCox transformation. Please install it.")
+      }
+      lambda <- forecast::BoxCox.lambda(x, method = "loglik")
+      return(forecast::BoxCox(x, lambda))
+    } else if (method == "log10") {
+      return(log10(x + 1))
+    } else if (method == "sqrt") {
+      return(sqrt(x))
+    } else if (method == "reciprocal") {
+      return(1 / (x + 1e-8))
+    } else {
+      stop("Unknown transformation")
+    }
+  }
+  
+  # Subset and transform the selected variables
+  transformed_list <- mapply(
+    FUN = transform_var,
+    x = data[vars],
+    method = methods,
+    SIMPLIFY = FALSE
+  )
+  
+  transformed_data <- as.data.frame(transformed_list)
+  names(transformed_data) <- vars
+  return(transformed_data)
+}
+
 
 #' Evaluate the normality of a dataset
 #'
