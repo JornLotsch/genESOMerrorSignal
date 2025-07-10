@@ -2,7 +2,7 @@
 # Experiment 7: Gallstone Clinical Data Set Analysis
 # Description:
 #   Analyzes a real-world heart failure dataset from
-#
+#   https://archive.ics.uci.edu/dataset/1150/gallstone-1
 #   Steps: scaling, data splitting, statistical significance analysis,
 #   feature importance analysis, and visualization.
 ###############################################################################
@@ -29,9 +29,9 @@ library(Boruta)
 library(readxl)
 
 # --- Load and Prepare Heart Failure Dataset ----------------------------------
-path_data <- "/home/joern/Aktuell/GenerativeESOM/08AnalyseProgramme/R/genESOMerrorSignal/UCI/"
+path_data <- "/home/joern/Aktuell/GenerativeESOM/08AnalyseProgramme/R/genESOMerrorSignal/Gallstone/"
 
-gallstone_clinical_data <- readxl::read_excel(
+gallstone_data <- readxl::read_excel(
   paste0(path_data, "dataset-uci.xlsx")
 )
 
@@ -47,20 +47,20 @@ feature_vars <- c(
   "Glomerular Filtration Rate (GFR)", "C-Reactive Protein (CRP)", "Hemoglobin (HGB)", "Vitamin D"
 )
 
-names(gallstone_clinical_data)[1] <- "Target"
+names(gallstone_data)[1] <- "Target"
 
-gallstone_clinical_data <- na.omit(gallstone_clinical_data)
-dim(gallstone_clinical_data)
-table(gallstone_clinical_data$Target)
-str(gallstone_clinical_data)
+gallstone_data <- na.omit(gallstone_data)
+dim(gallstone_data)
+table(gallstone_data$Target)
+str(gallstone_data)
 
 # --- Explore Feature Distributions and Transformations -----------------------
 class_name <- "Target"
-class_column <- gallstone_clinical_data[[class_name]]
+class_column <- gallstone_data[[class_name]]
 transformation_methods <- c("none", "log10", "sqrt", "reciprocal", "boxcox")
 
 distribution_results <- explore_distribution(
-  data = gallstone_clinical_data,
+  data = gallstone_data,
   classes = class_column,
   transformation_methods = transformation_methods,
   plot_results = TRUE
@@ -74,20 +74,20 @@ print(best_transforms[, c("Variable", "Transformation", "AD_P_Value")])
 
 # --- Transform and Scale Features --------------------------------------------
 
-gallstone_clinical_data_transformed <- apply_var_wise_best_tukey_transformation(data = gallstone_clinical_data, best_transforms = best_transforms)
+gallstone_data_transformed <- apply_var_wise_best_tukey_transformation(data = gallstone_data, best_transforms = best_transforms)
 
 # Scale features (excluding target column)
-gallstone_clinical_data_transformed[, -1] <- apply(
-  gallstone_clinical_data_transformed[, -1], 2, scale
+gallstone_data_transformed[, -1] <- apply(
+  gallstone_data_transformed[, -1], 2, scale
 )
 
 # --- Visualize Transformed and Scaled Data -----------------------------------
-gallstone_clinical_data_transformed_long <- reshape2::melt(
-  gallstone_clinical_data_transformed, id.vars = "Target"
+gallstone_data_transformed_long <- reshape2::melt(
+  gallstone_data_transformed, id.vars = "Target"
 )
 
 p_gallstone_clinical <- ggplot(
-  gallstone_clinical_data_transformed_long,
+  gallstone_data_transformed_long,
   aes(x = variable, y = value, color = as.factor(Target), fill = as.factor(Target))
 ) +
   geom_violin(alpha = .3) +
@@ -109,7 +109,7 @@ p_gallstone_clinical <- ggplot(
 # --- Feature Importance Analysis: Boruta -------------------------------------
 set.seed(42)
 all_boruta <- Boruta::Boruta(
-  Target ~ ., data = gallstone_clinical_data_transformed,
+  Target ~ ., data = gallstone_data_transformed,
   pValue = 0.0001, maxRuns = 100
 )
 
@@ -157,23 +157,23 @@ nProc <- min(parallel::detectCores() - 1, max_cores)
 seed <- 42
 
 split_gallstone_clinical <- opdisDownsampling::opdisDownsampling(
-  Data = within(gallstone_clinical_data_transformed, rm(Target)),
-  Cls = gallstone_clinical_data_transformed$Target,
-  Size = 0.8 * nrow(gallstone_clinical_data_transformed),
+  Data = within(gallstone_data_transformed, rm(Target)),
+  Cls = gallstone_data_transformed$Target,
+  Size = 0.8 * nrow(gallstone_data_transformed),
   Seed = seed,
   nTrials = 10000,
   MaxCores = nProc
 )
-gallstone_clinical_TrainingTest <- gallstone_clinical_data_transformed[
-  rownames(gallstone_clinical_data_transformed) %in% split_gallstone_clinical$ReducedInstances,]
-gallstone_clinical_Validation <- gallstone_clinical_data_transformed[
-  !rownames(gallstone_clinical_data_transformed) %in% split_gallstone_clinical$ReducedInstances,]
+gallstone_clinical_TrainingTest <- gallstone_data_transformed[
+  rownames(gallstone_data_transformed) %in% split_gallstone_clinical$ReducedInstances,]
+gallstone_clinical_Validation <- gallstone_data_transformed[
+  !rownames(gallstone_data_transformed) %in% split_gallstone_clinical$ReducedInstances,]
 
 # --- Statistical Significance Analysis ---------------------------------------
 # Perform t-test for each variable (excluding target)
 p_vals_ttest <- apply(
-  gallstone_clinical_data_transformed[, -1], 2,
-  function(x) t.test(x ~ as.factor(gallstone_clinical_data_transformed$Target))$p.value
+  gallstone_data_transformed[, -1], 2,
+  function(x) t.test(x ~ as.factor(gallstone_data_transformed$Target))$p.value
 )
 
 # Identify significant variables (example list)
@@ -215,12 +215,12 @@ print(barplot_gallstone_clinical_significant_vars)
 # --- U-Matrix and Density Radius Calculation ---------------------------------
 set.seed(seed)
 umx_gallstone_clinical <- Umatrix::esomTrain(
-  Data = as.matrix(within(gallstone_clinical_data_transformed, rm(Target))),
+  Data = as.matrix(within(gallstone_data_transformed, rm(Target))),
   Lines = 80, Columns = 50, Toroid = TRUE, Epochs = 100
 )
 
 radius_umx_gallstone_clinical <- Umatrix::calculate_Delauny_radius(
-  Data = as.matrix(within(gallstone_clinical_data_transformed, rm(Target))),
+  Data = as.matrix(within(gallstone_data_transformed, rm(Target))),
   BestMatches = umx_gallstone_clinical$BestMatches,
   Columns = 50, Lines = 80, Toroid = TRUE
 )
@@ -233,7 +233,7 @@ DataSetSizes <- c(
 )
 
 results_varimp_gallstone_clinical <- analyze_variable_importance(
-  data = gallstone_clinical_data_transformed,
+  data = gallstone_data_transformed,
   class_name = "Target",
   data_reduced = gallstone_clinical_TrainingTest,
   DataSetSizes = DataSetSizes,
@@ -254,7 +254,7 @@ plot_gallstone_clinical_selfreq <- cowplot::plot_grid(
 ) +
   plot_annotation(
     title = "Variable selection frequency",
-    subtitle = "Dataset: gallstone_clinical_data"
+    subtitle = "Dataset: gallstone_data"
   ) &
   theme(
     plot.tag.position = c(0.5, 1),
@@ -263,7 +263,7 @@ plot_gallstone_clinical_selfreq <- cowplot::plot_grid(
 
 print(plot_gallstone_clinical_selfreq)
 ggsave(
-  "plot_gallstone_clinical_data_selection_freq.svg",
+  "plot_gallstone_data_selection_freq.svg",
   plot_gallstone_clinical_selfreq,
   width = 22, height = 10, limitsize = FALSE
 )
