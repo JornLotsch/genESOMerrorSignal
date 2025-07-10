@@ -529,7 +529,7 @@ apply_best_tukey_transformation <- function(data) {
 #' @param max_vars Maximum number of variables to process
 #' @return Data frame with Anderson-Darling test results for each variable and transformation
 explore_distribution <- function(data, classes = NULL, transformation_methods = "none",
-                                 variables = NULL, plot_results = TRUE, max_vars = 20, random_seed = 123) {
+                                 variables = NULL, plot_results = TRUE, max_vars = 100, random_seed = 123) {
   # Save original plotting parameters to restore later
   original_par <- par(no.readonly = TRUE)
   on.exit(par(original_par))

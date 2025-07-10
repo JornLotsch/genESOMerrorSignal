@@ -1,5 +1,5 @@
 ###############################################################################
-# Experiment 6: ILPD (Indian Liver Patient Dataset) Analysis
+# Experiment 5: ILPD (Indian Liver Patient Dataset) Analysis
 # Description:
 #   Analyzes a real-world heart failure dataset from
 #   https://archive.ics.uci.edu/dataset/225/ilpd+indian+liver+patient+dataset
@@ -62,7 +62,7 @@ distribution_results <- explore_distribution(
 par(mfrow = c(1, 1))
 
 # Print summary of best transformations
-best_transforms <- distribution_results[distribution_results$Best == "*", ]
+best_transforms <- distribution_results[distribution_results$Best == "*",]
 verbose("Best transformations by variable:")
 print(best_transforms[, c("Variable", "Transformation", "AD_P_Value")])
 
@@ -71,8 +71,8 @@ print(best_transforms[, c("Variable", "Transformation", "AD_P_Value")])
 Indian_liver_patient_data_transformed <- apply_var_wise_best_tukey_transformation(data = Indian_liver_patient_data, best_transforms = best_transforms)
 
 # Scale features (excluding target column)
-Indian_liver_patient_data_transformed[,-1] <- apply(
-  Indian_liver_patient_data_transformed[,-1], 2, scale
+Indian_liver_patient_data_transformed[, -1] <- apply(
+  Indian_liver_patient_data_transformed[, -1], 2, scale
 )
 
 # --- Visualize Transformed and Scaled Data -----------------------------------
@@ -159,14 +159,14 @@ split_Indian_liver_patient <- opdisDownsampling::opdisDownsampling(
   MaxCores = nProc
 )
 Indian_liver_patient_TrainingTest <- Indian_liver_patient_data_transformed[
-  rownames(Indian_liver_patient_data_transformed) %in% split_Indian_liver_patient$ReducedInstances, ]
+  rownames(Indian_liver_patient_data_transformed) %in% split_Indian_liver_patient$ReducedInstances,]
 Indian_liver_patient_Validation <- Indian_liver_patient_data_transformed[
-  !rownames(Indian_liver_patient_data_transformed) %in% split_Indian_liver_patient$ReducedInstances, ]
+  !rownames(Indian_liver_patient_data_transformed) %in% split_Indian_liver_patient$ReducedInstances,]
 
 # --- Statistical Significance Analysis ---------------------------------------
 # Perform t-test for each variable (excluding target)
 p_vals_ttest <- apply(
-  Indian_liver_patient_data_transformed[,-1], 2,
+  Indian_liver_patient_data_transformed[, -1], 2,
   function(x) t.test(x ~ as.factor(Indian_liver_patient_data_transformed$Target))$p.value
 )
 
@@ -188,7 +188,7 @@ df_Indian_liver_patient_p_vals$Original_significant[
 # --- Visualize Significance --------------------------------------------------
 barplot_Indian_liver_patient_significant_vars <- ggplot(
   df_Indian_liver_patient_p_vals,
-  aes(x = -log10(p.value), y = reorder(Feature, -log10(p.value)), fill = factor(Original_significant))
+  aes(x = -log10(p.value), y = reorder(Feature, - log10(p.value)), fill = factor(Original_significant))
 ) +
   geom_bar(stat = "identity", color = "#8C5C00", alpha = 0.3) +
   geom_vline(xintercept = -log10(0.05), color = "salmon", linetype = "dashed") +
