@@ -95,4 +95,4 @@ This project is licensed under the GNU General Public Licence v3.0 (GPL-3.0).
 
 ## Citation
 
- Lötsch, J, & Kringel D. (2025). Generative AI with self-organizing neural networks enables implicit error inflation control via dimensionality modulation. [in preparation]
+ Lötsch, J, & Kringel D. (2025). Mitigating error propagation in generative AI via dimensionality modulation as a method for safe dataset augmentation. [submitted]
