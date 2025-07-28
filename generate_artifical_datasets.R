@@ -56,11 +56,11 @@ generate_no_effect_data <- function(n_cases, n_vars, n_select, seed, p_threshold
     set.seed(i)
     mean_i = sample(10:30, 1)
     SD_i_1 <- sample(seq(1, 3, 0.01), size = 1)
-    Data_i_1 <- rnorm(n = nCases / 2, mean = mean_i, sd = SD_i_1)
+    Data_i_1 <- rnorm(n = n_cases / 2, mean = mean_i, sd = SD_i_1)
     set.seed(i + 1000)
     SD_i_2 <- sample(seq(1, 3, 0.01), size = 1)
     SD_i_2 <- SD_i_1
-    Data_i_2 <- rnorm(n = nCases / 2, mean = mean_i, sd = SD_i_2)
+    Data_i_2 <- rnorm(n = n_cases / 2, mean = mean_i, sd = SD_i_2)
     Data_i <- c(Data_i_1, Data_i_2)
     return(Data_i)
   })
