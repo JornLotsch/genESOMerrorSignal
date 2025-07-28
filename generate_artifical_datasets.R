@@ -1,6 +1,6 @@
 #' Artificial Data Sets Generation Script
 #'
-#' This script generates artificial test datasets for evaluating oversampling methods.
+#' This script generates artificial test datasets for evaluating generative methods.
 #' It creates two types of datasets:
 #' - A "ascending significance" dataset with clear class separation
 #' - A "No effect" dataset where classes are indistinguishable
