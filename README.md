@@ -95,4 +95,4 @@ This project is licensed under the GNU General Public Licence v3.0 (GPL-3.0).
 
 ## Citation
 
- Lötsch, J, & Kringel D. (2025). Mitigating error propagation in generative AI via dimensionality modulation as a method for safe biomedical dataset augmentation. [submitted]
+ Lötsch, J, Himmelspach A, Kringel D. (2025). Mitigating error propagation in generative AI via dimensionality modulation as a method for safe biomedical dataset augmentation. iScience [under revision]
