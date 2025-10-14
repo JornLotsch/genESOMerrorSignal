@@ -1,5 +1,5 @@
 ###############################################################################
-# Experiment 1: Ascending Statistical Significance of Class Differences
+# Experiments 1 and 2: Ascending Statistical Significance of Class Differences
 # Description:
 #   Analyzes an artificial dataset with systematically increasing class differences
 #   for each variable. Steps: t-tests, visualization, data splitting, and feature

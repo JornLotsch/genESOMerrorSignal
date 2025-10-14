@@ -31,7 +31,7 @@ library(Boruta)
 path_data <- "/home/joern/Aktuell/GenerativeESOM/08AnalyseProgramme/R/genESOMerrorSignal/heart+failure+clinical+records/"
 
 heart_failure_data_all <- read.csv(
-  paste0(path_data, "heart_failure_clinical_records_dataset.csv")
+  paste0(path_data, "heart_failure_dataset.csv")
 )
 
 feature_vars <- c(
@@ -65,6 +65,7 @@ par(mfrow = c(1, 1))
 best_transforms <- distribution_results[distribution_results$Best == "*",]
 verbose("Best transformations by variable:")
 print(best_transforms[, c("Variable", "Transformation", "AD_P_Value")])
+if (best_transforms$Transformation[best_transforms$Variable == "Target"] != "none") stop("Target varibale to be transformed. Please check.")
 
 # --- Transform and Scale Features --------------------------------------------
 
@@ -250,7 +251,7 @@ plot_heart_failure_selfreq <- cowplot::plot_grid(
 ) +
   plot_annotation(
     title = "Variable selection frequency",
-    subtitle = "Dataset: heart_failure_clinical_records"
+    subtitle = "Dataset: heart_failure"
   ) &
   theme(
     plot.tag.position = c(0.5, 1),
@@ -259,7 +260,7 @@ plot_heart_failure_selfreq <- cowplot::plot_grid(
 
 print(plot_heart_failure_selfreq)
 ggsave(
-  "plot_heart_failure_clinical_records_selection_freq.svg",
+  "plot_heart_failure_selection_freq.svg",
   plot_heart_failure_selfreq,
   width = 22, height = 10, limitsize = FALSE
 )
@@ -385,7 +386,7 @@ plot_heart_failure_selfreq_annotated <- cowplot::plot_grid(
 ) +
   plot_annotation(
     title = "Variable selection frequency",
-    subtitle = "Dataset: heart_failure_clinical_records"
+    subtitle = "Dataset: heart_failure"
   ) &
   theme(
     plot.tag.position = c(0.5, 1),
@@ -394,7 +395,7 @@ plot_heart_failure_selfreq_annotated <- cowplot::plot_grid(
 
 print(plot_heart_failure_selfreq_annotated)
 ggsave(
-  "plot_heart_failure_clinical_records_selection_freq_annotated.svg",
+  "plot_heart_failure_selection_freq_annotated.svg",
   plot_heart_failure_selfreq_annotated,
   width = 22, height = 10, limitsize = FALSE
 )

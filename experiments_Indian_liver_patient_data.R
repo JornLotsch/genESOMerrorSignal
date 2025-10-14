@@ -65,6 +65,7 @@ par(mfrow = c(1, 1))
 best_transforms <- distribution_results[distribution_results$Best == "*",]
 verbose("Best transformations by variable:")
 print(best_transforms[, c("Variable", "Transformation", "AD_P_Value")])
+if (best_transforms$Transformation[best_transforms$Variable == "Target"] != "none") stop("Target varibale to be transformed. Please check.")
 
 # --- Transform and Scale Features --------------------------------------------
 
@@ -90,7 +91,7 @@ p_Indian_liver_patient <- ggplot(
   ggthemes::scale_color_colorblind() +
   ggthemes::scale_fill_colorblind() +
   labs(
-    title = "Heart Failure Clinical Records Dataset",
+    title = "Indian Liver Patients Dataset",
     fill = "Event", color = "Event"
   ) +
   theme(
@@ -125,7 +126,7 @@ p_Indian_liver_patient_boruta <- ggplot(
   geom_boxplot(alpha = .3) +
   theme_light() +
   labs(
-    title = "Heart Failure Clinical Records Feature Importance",
+    title = "Indian Liver Patients Data Feature Importance",
     fill = "Decision", color = "Decision"
   ) +
   theme(
@@ -170,10 +171,8 @@ p_vals_ttest <- apply(
   function(x) t.test(x ~ as.factor(Indian_liver_patient_data_transformed$Target))$p.value
 )
 
-# Identify significant variables (example list)
-Indian_liver_patient_significant_vars <- c(
-  "ejection_fraction", "serum_creatinine"
-)
+# Identify significant variables
+Indian_liver_patient_significant_vars <- names(p_vals_ttest[p_vals_ttest < 0.05])
 
 # Prepare data for plotting
 df_Indian_liver_patient_p_vals <- cbind.data.frame(

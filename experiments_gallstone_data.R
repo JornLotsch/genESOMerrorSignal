@@ -71,6 +71,7 @@ par(mfrow = c(1, 1))
 best_transforms <- distribution_results[distribution_results$Best == "*",]
 verbose("Best transformations by variable:")
 print(best_transforms[, c("Variable", "Transformation", "AD_P_Value")])
+if (best_transforms$Transformation[best_transforms$Variable == "Target"] != "none") stop("Target varibale to be transformed. Please check.")
 
 # --- Transform and Scale Features --------------------------------------------
 
@@ -96,7 +97,7 @@ p_gallstone_clinical <- ggplot(
   ggthemes::scale_color_colorblind() +
   ggthemes::scale_fill_colorblind() +
   labs(
-    title = "Heart Failure Clinical Records Dataset",
+    title = "Gallstone Clinical Dataset",
     fill = "Event", color = "Event"
   ) +
   theme(
@@ -131,7 +132,7 @@ p_gallstone_clinical_boruta <- ggplot(
   geom_boxplot(alpha = .3) +
   theme_light() +
   labs(
-    title = "Heart Failure Clinical Records Feature Importance",
+    title = "Gallstone Clinical Dataset Feature Importance",
     fill = "Decision", color = "Decision"
   ) +
   theme(
@@ -389,7 +390,7 @@ plot_gallstone_clinical_selfreq_annotated <- cowplot::plot_grid(
 ) +
   plot_annotation(
     title = "Variable selection frequency",
-    subtitle = "Dataset: gallstone_clinical_clinical_records"
+    subtitle = "Dataset: gallstone_clinical"
   ) &
   theme(
     plot.tag.position = c(0.5, 1),
@@ -398,7 +399,7 @@ plot_gallstone_clinical_selfreq_annotated <- cowplot::plot_grid(
 
 print(plot_gallstone_clinical_selfreq_annotated)
 ggsave(
-  "plot_gallstone_clinical_clinical_records_selection_freq_annotated.svg",
+  "plot_gallstone_clinical_selection_freq_annotated.svg",
   plot_gallstone_clinical_selfreq_annotated,
   width = 22, height = 10, limitsize = FALSE
 )
