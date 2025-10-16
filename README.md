@@ -138,7 +138,7 @@ This repository is part of a broader research effort comprising three related st
    Lötsch, J, Himmelspach A, Kringel D. (2025). Mitigating error propagation in generative AI via dimensionality modulation as a method for safe biomedical dataset augmentation. *iScience* [in revision].
 
 3. A related preprint presenting applications of generative AI for knowledge extraction from preclinical studies with limited samples:  
-   Lötsch, J., Mayer, B., de Bruin, N., Ultsch, A. (2025). Generative AI Enhances Knowledge Extraction from Preclinical Studies with Reduced Sample Size.(work in progress, resubmission underway).
+   Lötsch, J., Mayer, B., de Bruin, N., Ultsch, A. (2026). Generative AI Enhances Knowledge Extraction from Preclinical Studies with Reduced Sample Size.(work in progress, resubmission underway).
 
 ## License
 
